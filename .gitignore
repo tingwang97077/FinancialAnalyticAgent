@@ -1,0 +1,31 @@
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+
+# Env & secrets
+.env
+*.env
+!.env.example
+
+# Data & caches locaux
+/data/
+sec_cache/
+
+# Airflow (généré localement)
+logs/
+airflow.db
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Terraform (pour infra/ plus tard)
+.terraform/
+*.tfstate
+*.tfstate.*
+
+ARCHITECTURE_SPEC.md
