@@ -29,3 +29,4 @@ airflow.db
 *.tfstate.*
 
 ARCHITECTURE_SPEC.md
+.sec_cache
