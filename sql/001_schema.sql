@@ -63,6 +63,8 @@ CREATE INDEX idx_chunks_tsv
     ON doc_chunks USING gin (text_tsv);
 CREATE INDEX idx_chunks_meta
     ON doc_chunks (ticker, fiscal_year, fiscal_period);
+CREATE UNIQUE INDEX idx_chunks_identity
+    ON doc_chunks (accession_no, section, chunk_index);
 
 -- Incremental ingestion bookkeeping
 CREATE TABLE ingestion_state (

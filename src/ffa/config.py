@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     openai_api_key: SecretStr | None = None
     openai_model: str = ""
+    openai_classifier_model: str = ""
     openai_embedding_model: str = "text-embedding-3-small"
 
     database_url: str = "postgresql+psycopg://ffa_app:pass@postgres:5432/ffa"
