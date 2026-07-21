@@ -30,3 +30,4 @@ airflow.db
 
 ARCHITECTURE_SPEC.md
 .sec_cache
+/docs/
