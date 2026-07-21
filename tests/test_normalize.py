@@ -66,6 +66,31 @@ def test_mapping_is_explicit_and_covers_required_metrics() -> None:
     )
 
 
+def test_normalize_accepts_numeric_string_companyfacts_cik() -> None:
+    facts = {
+        "NetIncomeLoss": _concept(
+            _record(
+                value=112_010_000_000,
+                accession_no="0000320193-25-000079",
+                fiscal_year=2025,
+                fiscal_period="FY",
+                start="2024-09-29",
+                end="2025-09-27",
+                filed="2025-10-31",
+                form="10-K",
+            )
+        )
+    }
+    envelope = _envelope(facts)
+    envelope["companyfacts"]["cik"] = str(CIK)
+
+    rows = normalize_facts(envelope)
+
+    assert len(rows) == 1
+    assert rows[0]["cik"] == CIK
+    assert isinstance(rows[0]["cik"], int)
+
+
 def test_maps_preferred_revenue_tag_preserves_origin_and_logs_unknown(
     caplog: Any,
 ) -> None:

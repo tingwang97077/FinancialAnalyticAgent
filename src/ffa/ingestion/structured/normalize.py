@@ -390,9 +390,15 @@ def _unwrap_envelope(
 
 
 def _positive_int(value: object, *, field: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
         raise NormalizationError(f"{field} must be a positive integer.")
-    return value
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise NormalizationError(f"{field} must be a positive integer.") from exc
+    if parsed <= 0:
+        raise NormalizationError(f"{field} must be a positive integer.")
+    return parsed
 
 
 def _iso_date(value: object, *, field: str) -> date:

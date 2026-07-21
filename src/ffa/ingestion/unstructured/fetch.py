@@ -6,7 +6,7 @@ import logging
 import re
 from collections.abc import Mapping, Sequence
 from datetime import date
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 from sqlalchemy import Engine, text
 
@@ -26,6 +26,7 @@ _SUPPORTED_FORMS = {
     "10-Q/A": "10-Q",
 }
 _ACCESSION_PATTERN = re.compile(r"^\d{10}-\d{2}-\d{6}$")
+_NO_TEN_K_REASON = "No 10-K or 10-K/A filing exists in SEC submissions."
 
 _SELECT_STATE_SQL = text(
     """
@@ -107,6 +108,30 @@ class FetchedFilingDocument(TypedDict):
     html: str
 
 
+class FilingDiscoverySummary(TypedDict):
+    """Per-company status included in an unstructured discovery report."""
+
+    ticker: str
+    cik: int
+    status: Literal["OK", "SKIPPED"]
+    filing_count: int
+    reason: str | None
+
+
+class FilingDiscoveryResult(FilingDiscoverySummary):
+    """Per-company discovery result with filings eligible for ingestion."""
+
+    filings: list[FilingMetadata]
+
+
+class FilingDiscoveryReport(TypedDict):
+    """Aggregate report that preserves successful and skipped companies."""
+
+    filings: list[FilingMetadata]
+    ok: list[FilingDiscoverySummary]
+    skipped: list[FilingDiscoverySummary]
+
+
 def list_filings(
     company: Mapping[str, object],
     *,
@@ -115,11 +140,31 @@ def list_filings(
     settings: Settings | None = None,
     use_cache: bool = True,
 ) -> list[FilingMetadata]:
-    """List 10-K and 10-Q filings newer than the persisted ingestion cursor.
+    """List eligible filings while preserving the original public API."""
+    return discover_filings(
+        company,
+        client=client,
+        engine=engine,
+        settings=settings,
+        use_cache=use_cache,
+    )["filings"]
+
+
+def discover_filings(
+    company: Mapping[str, object],
+    *,
+    client: SecEdgarClient | None = None,
+    engine: Engine | None = None,
+    settings: Settings | None = None,
+    use_cache: bool = True,
+) -> FilingDiscoveryResult:
+    """Discover incremental filings and classify companies with no 10-K as skipped.
 
     The current submissions document and every relevant historical submissions
     file are considered. Fiscal periods are intentionally left unset here; they
-    are later joined from canonical XBRL facts by accession number.
+    are later joined from canonical XBRL facts by accession number. A company
+    whose SEC submissions contain no 10-K or 10-K/A is a valid skip rather than
+    an ingestion failure.
 
     Args:
         company: Mapping containing ``ticker``, ``cik``, and ``name``.
@@ -129,7 +174,7 @@ def list_filings(
         use_cache: Whether SEC submission responses may use the disk cache.
 
     Returns:
-        New supported filings sorted from oldest to newest.
+        Discovery status and new supported filings sorted from oldest to newest.
     """
     normalized_company = _validate_company(company)
     resolved_settings = settings or get_settings()
@@ -147,21 +192,83 @@ def list_filings(
         _validate_submission_identity(root_payload, normalized_company)
 
         filings = parse_submission_filings(root_payload, normalized_company)
+        has_ten_k = _contains_ten_k_form(root_payload)
         for history_file in _history_files(root_payload, state):
             history_url = f"{SEC_DATA_BASE_URL}/submissions/{history_file}"
             history_payload = resolved_client.get_json(history_url, use_cache=use_cache)
             filings.extend(parse_submission_filings(history_payload, normalized_company))
+            has_ten_k = has_ten_k or _contains_ten_k_form(history_payload)
+
+        if not has_ten_k:
+            logger.warning(
+                "Skipping SEC unstructured ingestion for ticker=%s cik=%s: %s",
+                normalized_company["ticker"],
+                normalized_company["cik"],
+                _NO_TEN_K_REASON,
+            )
+            return FilingDiscoveryResult(
+                ticker=normalized_company["ticker"],
+                cik=normalized_company["cik"],
+                status="SKIPPED",
+                filing_count=0,
+                reason=_NO_TEN_K_REASON,
+                filings=[],
+            )
 
         deduplicated = {filing["accession_no"]: filing for filing in filings}
-        return sorted(
+        incremental_filings = sorted(
             (filing for filing in deduplicated.values() if _is_after_state(filing, state)),
             key=lambda filing: (filing["filing_date"], filing["accession_no"]),
+        )
+        return FilingDiscoveryResult(
+            ticker=normalized_company["ticker"],
+            cik=normalized_company["cik"],
+            status="OK",
+            filing_count=len(incremental_filings),
+            reason=None,
+            filings=incremental_filings,
         )
     finally:
         if owned_client:
             resolved_client.close()
         if owned_engine:
             resolved_engine.dispose()
+
+
+def summarize_filing_discoveries(
+    discoveries: Sequence[FilingDiscoveryResult],
+) -> FilingDiscoveryReport:
+    """Flatten eligible filings and report every successful or skipped ticker."""
+    filings: list[FilingMetadata] = []
+    ok: list[FilingDiscoverySummary] = []
+    skipped: list[FilingDiscoverySummary] = []
+    for discovery in discoveries:
+        summary = FilingDiscoverySummary(
+            ticker=discovery["ticker"],
+            cik=discovery["cik"],
+            status=discovery["status"],
+            filing_count=discovery["filing_count"],
+            reason=discovery["reason"],
+        )
+        if discovery["status"] == "OK":
+            ok.append(summary)
+            filings.extend(discovery["filings"])
+        else:
+            skipped.append(summary)
+
+    logger.info(
+        "SEC unstructured discovery report: OK=%s; SKIPPED=%s",
+        [summary["ticker"] for summary in ok],
+        [
+            {
+                "ticker": summary["ticker"],
+                "cik": summary["cik"],
+                "reason": summary["reason"],
+            }
+            for summary in skipped
+        ],
+    )
+    return FilingDiscoveryReport(filings=filings, ok=ok, skipped=skipped)
 
 
 def parse_submission_filings(
@@ -296,6 +403,11 @@ def _required_column(records: Mapping[str, Any], name: str) -> Sequence[object]:
     if not isinstance(value, list):
         raise ValueError(f"SEC submissions payload must contain a {name} list.")
     return value
+
+
+def _contains_ten_k_form(payload: Mapping[str, Any]) -> bool:
+    forms = _required_column(_submission_columns(payload), "form")
+    return any(form in {"10-K", "10-K/A"} for form in forms)
 
 
 def _history_files(

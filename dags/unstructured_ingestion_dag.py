@@ -22,15 +22,30 @@ def unstructured_ingestion_dag() -> None:
         return list(resolve())
 
     @task
-    def list_filings(company: dict[str, object]) -> list[dict[str, object]]:
-        from ffa.ingestion.unstructured.fetch import list_filings as discover
+    def discover_filings(company: dict[str, object]) -> dict[str, object]:
+        from ffa.ingestion.unstructured.fetch import discover_filings as discover
 
         # Scheduled runs bypass the current submissions cache so new filings are visible.
-        return [dict(filing) for filing in discover(company, use_cache=False)]
+        return dict(discover(company, use_cache=False))
 
     @task
-    def flatten_filings(filing_groups: list[list[dict[str, object]]]) -> list[dict[str, object]]:
-        return [filing for group in filing_groups for filing in group]
+    def report_discoveries(
+        discoveries: list[dict[str, object]],
+    ) -> dict[str, list[dict[str, object]]]:
+        from ffa.ingestion.unstructured.fetch import summarize_filing_discoveries
+
+        report = summarize_filing_discoveries(discoveries)  # type: ignore[arg-type]
+        return {
+            "filings": [dict(filing) for filing in report["filings"]],
+            "ok": [dict(summary) for summary in report["ok"]],
+            "skipped": [dict(summary) for summary in report["skipped"]],
+        }
+
+    @task
+    def flatten_filings(
+        report: dict[str, list[dict[str, object]]],
+    ) -> list[dict[str, object]]:
+        return report["filings"]
 
     @task
     def fetch_documents(filing: dict[str, object]) -> dict[str, object]:
@@ -63,8 +78,9 @@ def unstructured_ingestion_dag() -> None:
         return load(chunks)
 
     companies = resolve_universe()
-    filing_groups = list_filings.expand(company=companies)
-    filings = flatten_filings(filing_groups)
+    discoveries = discover_filings.expand(company=companies)
+    discovery_report = report_discoveries(discoveries)
+    filings = flatten_filings(discovery_report)
     documents = fetch_documents.expand(filing=filings)
     sections = clean_text.expand(document=documents)
     chunks = chunk_text.expand(sections=sections)

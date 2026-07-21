@@ -54,6 +54,13 @@ _UPSERT_FILING_SQL = text(
     """
 )
 
+_DELETE_ACCESSION_CHUNKS_SQL = text(
+    """
+    DELETE FROM doc_chunks
+    WHERE accession_no = :accession_no
+    """
+)
+
 _UPSERT_CHUNK_SQL = text(
     """
     INSERT INTO doc_chunks (
@@ -125,7 +132,13 @@ def load_chunks(
     engine: Engine | None = None,
     settings: Settings | None = None,
 ) -> int:
-    """Upsert embedded chunks and advance ingestion cursors atomically."""
+    """Replace complete filing chunk sets and advance cursors atomically.
+
+    Every accession represented by ``chunks`` is treated as a complete new
+    segmentation. Existing rows for that accession are deleted before the new
+    rows are inserted inside the same transaction, so stale chunk indexes cannot
+    survive a re-chunking run.
+    """
     if not chunks:
         return 0
     resolved_settings = settings or get_settings()
@@ -160,6 +173,10 @@ def _load_transaction(connection: Connection, chunks: list[EmbeddedChunk]) -> in
         ):
             representative = filing_chunks[0]
             connection.execute(_UPSERT_FILING_SQL, _params(representative))
+            connection.execute(
+                _DELETE_ACCESSION_CHUNKS_SQL,
+                {"accession_no": representative["accession_no"]},
+            )
             for chunk in sorted(
                 filing_chunks,
                 key=lambda row: (row["section"], row["chunk_index"]),

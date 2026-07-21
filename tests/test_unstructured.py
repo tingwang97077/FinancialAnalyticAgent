@@ -16,7 +16,12 @@ from ffa.config import Settings
 from ffa.ingestion.unstructured.chunk import chunk_text
 from ffa.ingestion.unstructured.clean import clean_text
 from ffa.ingestion.unstructured.embed import embed_chunks
-from ffa.ingestion.unstructured.fetch import list_filings, parse_submission_filings
+from ffa.ingestion.unstructured.fetch import (
+    discover_filings,
+    list_filings,
+    parse_submission_filings,
+    summarize_filing_discoveries,
+)
 from ffa.ingestion.unstructured.load import load_chunks
 
 COMPANY = {"ticker": "AAPL", "cik": 320193, "name": "Apple Inc."}
@@ -126,6 +131,35 @@ class FakeWriteEngine:
         self.connection = FakeWriteConnection()
 
     def begin(self) -> FakeWriteConnection:
+        return self.connection
+
+
+class StatefulChunkConnection(FakeWriteConnection):
+    """Track the final chunk keys produced by loader statements."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.rows: dict[tuple[str, str, int], dict[str, object]] = {}
+
+    def execute(self, statement: object, params: dict[str, object]) -> FakeResult:
+        result = super().execute(statement, params)
+        sql = str(statement)
+        accession = str(params.get("accession_no", ""))
+        if "DELETE FROM doc_chunks" in sql:
+            self.rows = {key: value for key, value in self.rows.items() if key[0] != accession}
+        elif "INSERT INTO doc_chunks" in sql:
+            key = (accession, str(params["section"]), int(params["chunk_index"]))
+            self.rows[key] = dict(params)
+        return result
+
+
+class StatefulChunkEngine:
+    """Transactional engine substitute retaining chunk rows across loads."""
+
+    def __init__(self) -> None:
+        self.connection = StatefulChunkConnection()
+
+    def begin(self) -> StatefulChunkConnection:
         return self.connection
 
 
@@ -258,6 +292,60 @@ def test_list_filings_skips_missing_primary_document_and_keeps_other_filings(
     assert "Skipping SEC filing 0000320193-24-000001" in caplog.text
 
 
+def test_discovery_skips_company_without_10k_and_reports_other_company(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    apple_client = FakeSecClient(
+        {
+            "cik": "0000320193",
+            "filings": {
+                "recent": _submission_columns([("0000320193-25-000079", "10-K", "2025-10-31")])
+            },
+        },
+        {},
+    )
+    xom_company = {"ticker": "XOM", "cik": 2115436, "name": "ExxonMobil Holdings Corp"}
+    xom_client = FakeSecClient(
+        {
+            "cik": "0002115436",
+            "filings": {
+                "recent": _submission_columns([("0002115436-26-000001", "8-K", "2026-07-01")])
+            },
+        },
+        {},
+    )
+    settings = Settings(_env_file=None)
+
+    with caplog.at_level(logging.INFO):
+        apple = discover_filings(
+            COMPANY,
+            client=apple_client,  # type: ignore[arg-type]
+            engine=FakeEngine(None),  # type: ignore[arg-type]
+            settings=settings,
+        )
+        xom = discover_filings(
+            xom_company,
+            client=xom_client,  # type: ignore[arg-type]
+            engine=FakeEngine(None),  # type: ignore[arg-type]
+            settings=settings,
+        )
+        report = summarize_filing_discoveries([apple, xom])
+
+    assert [summary["ticker"] for summary in report["ok"]] == ["AAPL"]
+    assert [filing["ticker"] for filing in report["filings"]] == ["AAPL"]
+    assert report["skipped"] == [
+        {
+            "ticker": "XOM",
+            "cik": 2115436,
+            "status": "SKIPPED",
+            "filing_count": 0,
+            "reason": "No 10-K or 10-K/A filing exists in SEC submissions.",
+        }
+    ]
+    assert "ticker=XOM cik=2115436" in caplog.text
+    assert "SKIPPED=[{'ticker': 'XOM', 'cik': 2115436" in caplog.text
+
+
 def test_clean_10k_keeps_largest_canonical_sections_and_visible_inline_xbrl() -> None:
     document = _document(
         form_type="10-K",
@@ -360,6 +448,461 @@ def test_clean_xhtml_removes_repeated_pagination_and_data_tables() -> None:
     assert "416,161" not in combined_text
     assert "Revenue growth reflected demand" in combined_text
     assert not any(issubclass(item.category, XMLParsedAsHTMLWarning) for item in caught)
+
+
+def test_clean_repairs_repeated_item_headers_and_prioritizes_unique_anchor() -> None:
+    toc_noise = "A misleading table-of-contents description that must not win. " * 20
+    document = _document(
+        form_type="10-K",
+        html=f"""
+        <html><body>
+          <h2>Item 1A. Risk Factors</h2>
+          <p>{toc_noise}</p>
+          <h2>Item 1B. Unresolved Staff Comments</h2>
+          <h2 id="item_1a_risk_factors">Item 1A. Risk Factors</h2>
+          <p>The first page explains semiconductor supply risk.</p>
+          <hr style="page-break-after: always"/><div>PART I</div><div>Item 1A</div>
+          <p>The second page explains regulatory risk.</p>
+          <hr style="page-break-after: always"/><div>PART I</div><div>Item 1A</div>
+          <p>The third page explains cybersecurity risk.</p>
+          <hr style="page-break-after: always"/><div>PART I</div><div>Item 1A</div>
+          <p>The fourth page explains competition risk.</p>
+          <h2>Item 1B. Unresolved Staff Comments</h2>
+        </body></html>
+        """,
+    )
+
+    risk_text = {section["section"]: section["text"] for section in clean_text(document)}[
+        "Risk Factors"
+    ]
+
+    assert "first page" in risk_text
+    assert "second page" in risk_text
+    assert "third page" in risk_text
+    assert "fourth page" in risk_text
+    assert "misleading table-of-contents" not in risk_text
+    assert "PART I" not in risk_text
+    assert "Item 1A" not in risk_text
+
+
+def test_clean_keeps_risk_section_open_across_repeated_part_headers() -> None:
+    document = _document(
+        form_type="10-K",
+        html="""
+        <html><body>
+          <h2>Item 1A. Risk Factors</h2>
+          <p>Page one discusses credit risk and liquidity pressure.</p>
+          <hr style="page-break-after: always"/><div>Part I</div>
+          <p>Page two discusses operational resilience.</p>
+          <hr style="page-break-after: always"/><div>Part I</div>
+          <p>Page three discusses regulatory investigations.</p>
+          <hr style="page-break-after: always"/><div>Part I</div>
+          <p>Page four discusses employee retention.</p>
+          <h2>Item 1B. Unresolved Staff Comments</h2>
+        </body></html>
+        """,
+    )
+
+    risk_text = {section["section"]: section["text"] for section in clean_text(document)}[
+        "Risk Factors"
+    ]
+
+    assert all(f"Page {word}" in risk_text for word in ("one", "two", "three", "four"))
+    assert "Part I" not in risk_text
+
+
+def test_clean_repairs_jpm_style_incorporated_sections_and_ignores_toc() -> None:
+    document = _document(
+        form_type="10-K",
+        html="""
+        <html><body>
+          <h2>Item 7. Management's Discussion and Analysis</h2>
+          <p>Management's discussion and analysis appears on pages 46-160.</p>
+          <h2>Item 7A. Market Risk</h2>
+          <h2>Item 8. Financial Statements and Supplementary Data</h2>
+          <p>The Consolidated Financial Statements and Notes appear on pages 165-314.</p>
+          <h2>Item 9. Changes in Accountants</h2>
+          <h2>Item 15. Exhibits and Financial Statement Schedules</h2>
+
+          <div style="font-weight:700">Management's discussion and analysis:</div>
+          <p>Table of contents entry for management discussion.</p>
+          <div style="font-weight:700">Consolidated Financial Statements</div>
+          <div style="font-weight:700">Notes to consolidated financial statements:</div>
+          <p>Table of contents entry for the notes.</p>
+          <div style="font-weight:700">Supplementary Information:</div>
+
+          <div style="font-weight:700">Management's discussion and analysis</div>
+          <p>Management explains consumer banking revenue and credit costs.</p>
+          <div style="font-weight:700">Management's discussion and analysis</div>
+          <p>Management explains capital, liquidity, and market risk.</p>
+          <div style="font-weight:700">
+            Management's report on internal control over financial reporting
+          </div>
+          <p>This internal-control report must not contaminate MD&amp;A.</p>
+
+          <div style="font-weight:700">Notes to consolidated financial statements</div>
+          <p>Note 1 describes the basis of presentation and consolidation.</p>
+          <div style="font-weight:700">Notes to consolidated financial statements</div>
+          <div>(Continued)</div>
+          <p>Note 2 describes fair value measurements.</p>
+          <div style="font-weight:700">Supplementary Information: Distribution of assets</div>
+          <p>Supplementary schedules must not contaminate Notes.</p>
+        </body></html>
+        """,
+    )
+
+    sections = {section["section"]: section["text"] for section in clean_text(document)}
+
+    assert "consumer banking revenue" in sections["MD&A"]
+    assert "capital, liquidity" in sections["MD&A"]
+    assert "Table of contents entry" not in sections["MD&A"]
+    assert "internal-control report" not in sections["MD&A"]
+    assert "basis of presentation" in sections["Notes"]
+    assert "fair value measurements" in sections["Notes"]
+    assert "Table of contents entry" not in sections["Notes"]
+    assert "Supplementary schedules" not in sections["Notes"]
+    assert "(Continued)" not in sections["Notes"]
+
+
+def test_clean_repairs_nvda_item_8_reference_through_item_15_and_stops_at_schedule() -> None:
+    document = _document(
+        form_type="10-K",
+        html="""
+        <html><body>
+          <h2>Item 8. Financial Statements and Supplementary Data</h2>
+          <p>The information required by this Item is set forth in our Consolidated
+             Financial Statements and Notes included in this Annual Report on Form 10-K.</p>
+          <h2>Item 9. Changes in Accountants</h2>
+          <h2>Item 15. Exhibits and Financial Statement Schedules</h2>
+          <div style="font-weight:700">Notes to the Consolidated Financial Statements</div>
+          <p>Note 1 describes NVIDIA's organization and accounting policies.</p>
+          <div>Table of Contents</div><div>NVIDIA Corporation and Subsidiaries</div>
+          <div style="font-weight:700">Notes to the Consolidated Financial Statements</div>
+          <div>(Continued)</div>
+          <p>Note 2 describes business combinations and fair value.</p>
+          <div>Table of Contents</div><div>NVIDIA Corporation and Subsidiaries</div>
+          <div style="font-weight:700">Notes to the Consolidated Financial Statements</div>
+          <div>(Continued)</div>
+          <p>Note 17 describes leases and contractual obligations.</p>
+          <div>Table of Contents</div><div>NVIDIA Corporation and Subsidiaries</div>
+          <div style="font-weight:700">Notes to the Consolidated Financial Statements</div>
+          <div>(Continued)</div>
+          <div style="font-weight:700">Schedule II - Valuation and Qualifying Accounts</div>
+          <p>The valuation schedule must not be captured.</p>
+          <div style="font-weight:700">Exhibit Index</div>
+          <h2>Item 16. Form 10-K Summary</h2>
+          <h2>Signatures</h2>
+        </body></html>
+        """,
+    )
+
+    notes = {section["section"]: section["text"] for section in clean_text(document)}["Notes"]
+
+    assert "organization and accounting policies" in notes
+    assert "business combinations" in notes
+    assert "leases and contractual obligations" in notes
+    assert "Table of Contents" not in notes
+    assert "NVIDIA Corporation and Subsidiaries" not in notes
+    assert "(Continued)" not in notes
+    assert "Schedule II" not in notes
+    assert "valuation schedule" not in notes
+    assert "Exhibit Index" not in notes
+    assert "Item 16" not in notes
+    assert "Signatures" not in notes
+
+
+def test_clean_does_not_promote_alternative_title_inside_plain_prose(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    document = _document(
+        form_type="10-K",
+        html="""
+        <html><body>
+          <h2>Item 8. Financial Statements and Supplementary Data</h2>
+          <p>The Notes appear on pages 100-180.</p>
+          <h2>Item 9. Changes in Accountants</h2>
+          <p>Readers often call this material Notes to Consolidated Financial Statements.</p>
+          <p>Notes to Consolidated Financial Statements</p>
+          <p>This plain paragraph is not a validated section heading.</p>
+          <div style="font-weight:700">Supplementary Information</div>
+        </body></html>
+        """,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        notes = {section["section"]: section["text"] for section in clean_text(document)}["Notes"]
+
+    assert "plain paragraph" not in notes
+    assert "appear on pages" in notes
+    assert "section=Notes" in caplog.text
+    assert "ticker=AAPL cik=320193 accession=0000320193-25-000079" in caplog.text
+    assert "heading_candidates=" in caplog.text
+    assert "no allow-listed standalone heading candidate" in caplog.text
+
+
+def test_clean_fails_closed_when_alternative_heading_has_no_reliable_end(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    document = _document(
+        form_type="10-K",
+        html="""
+        <html><body>
+          <h2>Item 7. Management's Discussion and Analysis</h2>
+          <p>Management's discussion and analysis appears on pages 46-160.</p>
+          <h2>Item 7A. Market Risk</h2>
+          <div style="font-weight:700">Management's discussion and analysis</div>
+          <p>Unbounded narrative that must not replace the safe historical result.</p>
+        </body></html>
+        """,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        mda = {section["section"]: section["text"] for section in clean_text(document)}["MD&A"]
+
+    assert "appears on pages" in mda
+    assert "Unbounded narrative" not in mda
+    assert "without a reliable closing boundary" in caplog.text
+
+
+def test_clean_recovers_sections_before_a_compact_late_item_index() -> None:
+    mda_title = (
+        "Management's Discussion and Analysis of Financial Condition and Results of Operations"
+    )
+    mda_paragraphs = "".join(
+        f"<p>Management analysis paragraph {index} discusses sales, margins, and liquidity.</p>"
+        for index in range(35)
+    )
+    risk_paragraphs = "".join(
+        f"<p>Risk paragraph {index} explains operational, market, and strategic uncertainty.</p>"
+        for index in range(35)
+    )
+    notes_paragraphs = "".join(
+        f"<p>Accounting policy paragraph {index} explains consolidation and recognition.</p>"
+        for index in range(35)
+    )
+    document = _document(
+        form_type="10-K",
+        html=f"""
+        <html><body>
+          <h2>{mda_title}</h2>
+          {mda_paragraphs}
+          <div>Example Corp 2025 Annual Report 7</div>
+          <h2>Risk Factors</h2>
+          {risk_paragraphs}
+          <h2>Properties</h2>
+          <p>Property descriptions must not contaminate risk factors.</p>
+          <p>Notes to Consolidated Financial Statements</p>
+          <p>Summary of Significant Accounting Policies</p>
+          {notes_paragraphs}
+          <p>Report of Independent Registered Public Accounting Firm</p>
+          <p>The audit report must not contaminate the notes.</p>
+
+          <h2>Part I</h2>
+          <p>Item 1 Business</p>
+          <p>Item 1A Risk Factors</p>
+          <p>Item 1B Unresolved Staff Comments</p>
+          <p>Item 1C Cybersecurity</p>
+          <p>Item 2 Properties</p>
+          <p>Item 3 Legal Proceedings</p>
+          <h2>Part II</h2>
+          <p>Item 5 Market for Common Equity</p>
+          <p>Item 7 Management's Discussion and Analysis</p>
+          <p>Item 7A Market Risk</p>
+          <p>Item 8 Financial Statements and Supplementary Data</p>
+          <p>Item 9 Changes in Accountants</p>
+          <h2>Part IV</h2>
+          <p>Item 15 Exhibits and Financial Statement Schedules</p>
+          <p>Item 16 Form 10-K Summary</p>
+        </body></html>
+        """,
+    )
+
+    sections = {section["section"]: section["text"] for section in clean_text(document)}
+
+    assert "Management analysis paragraph 34" in sections["MD&A"]
+    assert "Risk paragraph 34" in sections["Risk Factors"]
+    assert "Accounting policy paragraph 34" in sections["Notes"]
+    assert "Property descriptions" not in sections["Risk Factors"]
+    assert "audit report must not contaminate" not in sections["Notes"]
+    assert "Item 15 Exhibits" not in "\n".join(sections.values())
+    assert "2025 Annual Report 7" not in "\n".join(sections.values())
+
+
+def test_clean_selects_substantive_accounting_notes_instead_of_toc_occurrence() -> None:
+    accounting_body = "".join(
+        f"<p>Revenue recognition narrative {index} describes a substantive accounting policy.</p>"
+        for index in range(45)
+    )
+    document = _document(
+        form_type="10-K",
+        html=f"""
+        <html><body>
+          <h2>Notes to the Consolidated Financial Statements</h2>
+          <h3>Note 1 - Basis of Presentation</h3>
+          <p>Table of contents entry only.</p>
+          <h2>Report of Independent Registered Public Accounting Firm</h2>
+
+          <h2>Notes to the Consolidated Financial Statements</h2>
+          <h3>Note 1 - Basis of Presentation</h3>
+          {accounting_body}
+          <h2>Report of Independent Registered Public Accounting Firm</h2>
+          <p>Audit opinion outside the accounting notes.</p>
+
+          <h2>Item 8. Financial Statements and Supplementary Data</h2>
+          <p>The statements are included earlier in this report.</p>
+          <h2>Item 9. Changes in Accountants</h2>
+        </body></html>
+        """,
+    )
+
+    notes = {section["section"]: section["text"] for section in clean_text(document)}["Notes"]
+
+    assert "Revenue recognition narrative 44" in notes
+    assert "Table of contents entry only" not in notes
+    assert "Audit opinion outside" not in notes
+
+
+def test_clean_accepts_unstyled_notes_title_only_with_nearby_note_one() -> None:
+    accounting_body = "".join(
+        f"<p>Oil and gas accounting narrative {index} contains substantive policy detail.</p>"
+        for index in range(45)
+    )
+    document = _document(
+        form_type="10-K",
+        html=f"""
+        <html><body>
+          <h2>Item 8. Financial Statements and Supplementary Data</h2>
+          <p>The financial table of contents identifies the statements.</p>
+          <h2>Item 9. Changes in Accountants</h2>
+          <p>Notes to the Consolidated Financial Statements</p>
+          <p>Financial Table of Contents</p>
+          <p>Millions of dollars, except per-share amounts</p>
+          <h3>Note 1</h3>
+          {accounting_body}
+          <p>Notes to the Consolidated Financial Statements</p>
+          <h3>Note 1</h3>
+          <p>Continuation text remains in the same accounting body.</p>
+          <h2>Part IV</h2>
+          <h2>Item 15. Exhibits and Financial Statement Schedules</h2>
+        </body></html>
+        """,
+    )
+
+    notes = {section["section"]: section["text"] for section in clean_text(document)}["Notes"]
+
+    assert "Oil and gas accounting narrative 44" in notes
+    assert "Continuation text" in notes
+    assert "Part IV" not in notes
+    assert "Financial Table of Contents" not in notes
+    assert "Millions of dollars" not in notes
+
+
+def test_clean_accepts_eof_for_unambiguous_post_item_15_accounting_notes() -> None:
+    accounting_body = "".join(
+        f"<p>Segment accounting narrative {index} describes the business and its policies.</p>"
+        for index in range(45)
+    )
+    document = _document(
+        form_type="10-K",
+        html=f"""
+        <html><body>
+          <h2>Item 8. Financial Statements and Supplementary Data</h2>
+          <p>See Index to Financial Statements and Supplemental Data.</p>
+          <h2>Item 9. Changes in Accountants</h2>
+          <h2>Item 15. Exhibits and Financial Statement Schedules</h2>
+          <h2>Notes to Consolidated Financial Statements</h2>
+          <p>Index entry followed by non-accounting front matter.</p>
+          <p>More financial-statement front matter.</p>
+          <p>Still no first accounting note near this title.</p>
+          <p>Additional front matter.</p>
+          <p>Additional front matter.</p>
+          <p>Additional front matter.</p>
+          <p>Additional front matter.</p>
+          <p>Additional front matter.</p>
+          <p>Additional front matter.</p>
+          <p>Additional front matter.</p>
+          <p>Additional front matter.</p>
+          <p>Additional front matter.</p>
+          <h2>Notes to Consolidated Financial Statements</h2>
+          <h3>1 Description of the Business and Segment Information</h3>
+          {accounting_body}
+        </body></html>
+        """,
+    )
+
+    notes = {section["section"]: section["text"] for section in clean_text(document)}["Notes"]
+
+    assert "Segment accounting narrative 44" in notes
+    assert "Index entry followed" not in notes
+
+
+def test_clean_keeps_historical_notes_when_accounting_candidates_are_ambiguous(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    first_body = "".join(
+        f"<p>First candidate policy {index} has equally substantive accounting detail.</p>"
+        for index in range(45)
+    )
+    second_body = "".join(
+        f"<p>Second candidate policy {index} has equally substantive accounting detail.</p>"
+        for index in range(45)
+    )
+    document = _document(
+        form_type="10-K",
+        html=f"""
+        <html><body>
+          <h2>Item 8. Financial Statements and Supplementary Data</h2>
+          <p>Safe historical Notes result.</p>
+          <h2>Item 9. Changes in Accountants</h2>
+          <h2>Notes to Consolidated Financial Statements</h2>
+          <h3>Note 1 - First Candidate</h3>
+          {first_body}
+          <h2>Report of Independent Registered Public Accounting Firm</h2>
+          <h2>Notes to Consolidated Financial Statements</h2>
+          <h3>Note 1 - Second Candidate</h3>
+          {second_body}
+          <h2>Report of Independent Registered Public Accounting Firm</h2>
+        </body></html>
+        """,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        notes = {section["section"]: section["text"] for section in clean_text(document)}["Notes"]
+
+    assert notes == "Financial Statements and Supplementary Data\nSafe historical Notes result."
+    assert "multiple accounting Notes bodies remained ambiguous" in caplog.text
+
+
+def test_clean_logs_unfetched_companion_document_and_fails_closed(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    document = _document(
+        form_type="10-K",
+        html="""
+        <html><body>
+          <h2>Part I</h2>
+          <h2>Item 1A. Risk Factors</h2>
+          <p>Information can be found in the 2025 Annual Report to Shareholders and is
+             incorporated into this item by reference.</p>
+          <h2>Part II</h2>
+          <h2>Item 7. Management's Discussion and Analysis</h2>
+          <p>Information can be found in the 2025 Annual Report to Shareholders and is
+             incorporated into this item by reference.</p>
+          <h2>Item 8. Financial Statements and Supplementary Data</h2>
+          <p>Information can be found in the 2025 Annual Report to Shareholders and is
+             incorporated into this item by reference.</p>
+          <h2>Item 9. Changes in Accountants</h2>
+        </body></html>
+        """,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        sections = {section["section"]: section["text"] for section in clean_text(document)}
+
+    assert set(sections) == {"MD&A", "Notes", "Risk Factors"}
+    assert all("Annual Report to Shareholders" in value for value in sections.values())
+    assert "content incorporated in companion document not fetched" in caplog.text
+    assert "ticker=AAPL cik=320193 accession=0000320193-25-000079" in caplog.text
 
 
 def test_chunk_text_respects_section_boundaries_limit_overlap_and_metadata() -> None:
@@ -537,9 +1080,12 @@ def test_load_chunks_executes_idempotent_upserts_and_updates_exact_source() -> N
     state_calls = [
         call for call in engine.connection.calls if "INSERT INTO ingestion_state" in call[0]
     ]
+    delete_calls = [call for call in engine.connection.calls if "DELETE FROM doc_chunks" in call[0]]
     assert first_count == 2
     assert second_count == 2
     assert len(chunk_calls) == 4
+    assert len(delete_calls) == 2
+    assert all(params == {"accession_no": "0000320193-25-000079"} for _, params in delete_calls)
     assert all(
         "ON CONFLICT (accession_no, section, chunk_index) DO UPDATE" in statement
         for statement, _ in chunk_calls
@@ -550,6 +1096,55 @@ def test_load_chunks_executes_idempotent_upserts_and_updates_exact_source() -> N
     )
     assert len(state_calls) == 2
     assert all(params["source"] == "SEC_EDGAR_UNSTRUCTURED" for _, params in state_calls)
+
+
+def test_load_chunks_replaces_three_chunks_with_two_without_orphans() -> None:
+    engine = StatefulChunkEngine()
+    settings = Settings(_env_file=None, embedding_dim=3)
+
+    assert (
+        load_chunks(
+            _embedded_chunks(3),
+            engine=engine,  # type: ignore[arg-type]
+            settings=settings,
+        )
+        == 3
+    )
+    assert (
+        load_chunks(
+            _embedded_chunks(2),
+            engine=engine,  # type: ignore[arg-type]
+            settings=settings,
+        )
+        == 2
+    )
+
+    assert sorted(engine.connection.rows) == [
+        ("0000320193-25-000079", "MD&A", 0),
+        ("0000320193-25-000079", "MD&A", 1),
+    ]
+
+
+def test_load_chunks_replaces_two_chunks_with_five_without_gaps() -> None:
+    engine = StatefulChunkEngine()
+    settings = Settings(_env_file=None, embedding_dim=3)
+
+    load_chunks(
+        _embedded_chunks(2),
+        engine=engine,  # type: ignore[arg-type]
+        settings=settings,
+    )
+    assert (
+        load_chunks(
+            _embedded_chunks(5),
+            engine=engine,  # type: ignore[arg-type]
+            settings=settings,
+        )
+        == 5
+    )
+
+    assert sorted(key[2] for key in engine.connection.rows) == [0, 1, 2, 3, 4]
+    assert len(engine.connection.rows) == 5
 
 
 def _document(*, form_type: str, html: str) -> dict[str, object]:
@@ -589,6 +1184,29 @@ def _section(text: str) -> dict[str, object]:
         "text": text,
         "source_url": "https://www.sec.gov/filing.htm",
     }
+
+
+def _embedded_chunks(count: int) -> list[dict[str, object]]:
+    return [
+        {
+            "ticker": "AAPL",
+            "cik": 320193,
+            "company_name": "Apple Inc.",
+            "accession_no": "0000320193-25-000079",
+            "form_type": "10-K",
+            "filing_date": date(2025, 10, 31),
+            "period_of_report": date(2025, 9, 27),
+            "fiscal_year": 2025,
+            "fiscal_period": "FY",
+            "section": "MD&A",
+            "chunk_index": index,
+            "text": f"replacement chunk {index}",
+            "token_count": 3,
+            "source_url": "https://www.sec.gov/filing.htm",
+            "embedding": [0.1, 0.2, 0.3],
+        }
+        for index in range(count)
+    ]
 
 
 def _submission_columns(
