@@ -4,19 +4,44 @@ __pycache__/
 *.py[cod]
 .ruff_cache/
 .pytest_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+/.cache/
+/.uv-cache/
 
 # Env & secrets
 .env
 *.env
+.env.*
 !.env.example
 
 # Data & caches locaux
 /data/
 sec_cache/
+.sec_cache/
 
 # Airflow (généré localement)
 logs/
+*.log
 airflow.db
+
+# Docker bind volumes
+/pgdata/
+/grafana_data/
+
+# Frontend dependencies
+node_modules/
+
+# Temporary editor/test files
+*.tmp
+*.swp
+*~
 
 # IDE / OS
 .vscode/
@@ -29,5 +54,4 @@ airflow.db
 *.tfstate.*
 
 ARCHITECTURE_SPEC.md
-.sec_cache
 /docs/
