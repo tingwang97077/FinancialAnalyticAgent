@@ -16,6 +16,7 @@ from ffa.common.entities import (
     resolve_universe,
 )
 from ffa.config import Settings, get_settings
+from ffa.monitoring.tracing import record_openai_response
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,7 @@ class OpenAIUnderstandingProvider:
             input=question,
             text_format=Understanding,
         )
+        record_openai_response(response, model=model)
         parsed = response.output_parsed
         if parsed is None:
             raise UnderstandingError("The question could not be classified.")

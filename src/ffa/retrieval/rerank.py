@@ -78,6 +78,10 @@ class CrossEncoderReranker:
         reranked.sort(key=lambda item: (-item[1]["score"], item[0]))
         return [chunk for _, chunk in reranked[:top_n]]
 
+    def preload(self) -> None:
+        """Load model weights without running or changing the reranking algorithm."""
+        self._get_model()
+
     def _get_model(self) -> CrossEncoderModel:
         if self._model is None:
             with self._model_lock:

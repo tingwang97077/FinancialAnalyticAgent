@@ -13,6 +13,7 @@ from ffa.agent.guardrails import ValidatedSQL, validate_sql
 from ffa.agent.schemas import Intent, NumberFact, Understanding
 from ffa.common.db import create_readonly_engine
 from ffa.config import Settings, get_settings
+from ffa.monitoring.tracing import record_openai_response
 
 _STATEMENT_TIMEOUT_MS = 5_000
 _SET_READ_ONLY = text("SET TRANSACTION READ ONLY")
@@ -117,6 +118,7 @@ class SQLGenerationProvider:
             input=_sql_generation_input(understanding),
             text_format=GeneratedSQL,
         )
+        record_openai_response(response, model=model)
         parsed = response.output_parsed
         if parsed is None:
             raise RuntimeError("The model did not return a SQL query.")

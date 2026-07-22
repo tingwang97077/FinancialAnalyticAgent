@@ -31,4 +31,4 @@ GRANT USAGE ON SCHEMA public TO ffa_ro;
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM ffa_ro;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM ffa_ro;
 
-GRANT SELECT ON TABLE companies, filings, financial_facts TO ffa_ro;
+GRANT SELECT ON TABLE companies, filings, financial_facts, query_logs, feedback TO ffa_ro;

@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
+import html
 import logging
 import re
 import unicodedata
 from typing import Protocol
+from urllib.parse import unquote
 
 import sqlglot
 from openai import OpenAI
@@ -109,16 +113,44 @@ _FORBIDDEN_SQL_NODES = (
 _INJECTION_PATTERNS = tuple(
     re.compile(pattern, flags=re.IGNORECASE | re.DOTALL)
     for pattern in (
-        r"\b(?:ignore|disregard|forget|override|bypass)\b.{0,100}"
-        r"\b(?:previous|prior|above|system|developer|safety|instructions?|rules?)\b",
+        r"\b(?:ignore|disregard|forget|override|bypass|discard)\b.{0,160}"
+        r"\b(?:previous|prior|above|earlier|system|developer|safety|hidden|initial|your)\b"
+        r".{0,40}\b(?:instructions?|rules?|messages?|prompt)\b",
+        r"\b(?:ignore|disregard|forget|override|bypass|discard)\b.{0,160}"
+        r"\b(?:instructions?|rules?|messages?|prompt)\b.{0,40}"
+        r"\b(?:previous|prior|above|earlier|system|developer|safety|hidden|initial)\b",
+        r"\b(?:follow|obey|execute|adopt)\b.{0,80}\b(?:new|these|my)\b.{0,40}"
+        r"\b(?:instructions?|rules?|prompt)\b.{0,40}\b(?:instead|now)\b",
         r"\b(?:reveal|show|print|quote|repeat|expose|leak)\b.{0,100}"
         r"\b(?:system|developer|hidden|initial)\b.{0,50}\b(?:prompt|instructions?|message)\b",
         r"\b(?:act as|pretend to be|you are now)\b.{0,100}"
         r"\b(?:system|developer|unrestricted|jailbroken)\b",
         r"(?:^|\n)\s*(?:system|developer)\s*:",
-        r"\b(?:reveal|show|print|return|expose|leak)\b.{0,80}"
+        r"\b(?:reveal|show|print|return|expose|leak)\b.{0,50}"
+        r"\b(?:your|hidden|internal|system|developer)\b.{0,40}"
         r"\b(?:api[- ]?keys?|secrets?|credentials?)\b",
+        r"\b(?:ignore(?:r|z)?|oublie(?:r|z)?|contourne(?:r|z)?|outrepasse(?:r|z)?)\b"
+        r".{0,160}\b(?:toutes?\s+les\s+)?(?:instructions?|r[eè]gles?|directives?)\b"
+        r".{0,50}\b(?:pr[eé]c[eé]dentes?|ant[eé]rieures?|ci-dessus|syst[eè]me|d[eé]veloppeur)\b",
+        r"\bne\s+(?:tiens|tenez)\s+pas\s+compte\b.{0,120}"
+        r"\b(?:instructions?|r[eè]gles?|directives?|prompt)\b",
+        r"\b(?:r[eé]v[eè]le(?:r|z)?|affiche(?:r|z)?|divulgue(?:r|z)?|expose(?:r|z)?)\b"
+        r".{0,120}\b(?:prompt|instructions?|message)\b.{0,60}"
+        r"\b(?:syst[eè]me|d[eé]veloppeur|cach[eé])\b",
     )
+)
+_BASE64_TOKEN_PATTERN = re.compile(r"(?<![\w+/=-])[A-Za-z0-9+/_-]{16,}={0,2}(?![\w+/=-])")
+_LEETSPEAK_TRANSLATION = str.maketrans(
+    {
+        "0": "o",
+        "1": "i",
+        "3": "e",
+        "4": "a",
+        "5": "s",
+        "7": "t",
+        "@": "a",
+        "$": "s",
+    }
 )
 
 
@@ -248,7 +280,45 @@ def validate_sql(sql: str) -> ValidatedSQL:
 
 def _looks_like_prompt_injection(question: str) -> bool:
     """Detect high-confidence instruction-hierarchy manipulation attempts."""
-    return any(pattern.search(question) is not None for pattern in _INJECTION_PATTERNS)
+    return any(
+        pattern.search(candidate) is not None
+        for candidate in _text_variants(question)
+        for pattern in _INJECTION_PATTERNS
+    )
+
+
+def _text_variants(text: str) -> tuple[str, ...]:
+    """Expose plain, simply encoded, and obfuscated text to injection checks."""
+    normalized = _strip_format_characters(unicodedata.normalize("NFKC", text))
+    variants = {normalized, unquote(normalized), html.unescape(normalized)}
+    for candidate in tuple(variants):
+        variants.add(candidate.translate(_LEETSPEAK_TRANSLATION))
+        variants.update(_decoded_base64_fragments(candidate))
+    for candidate in tuple(variants):
+        variants.add(candidate.translate(_LEETSPEAK_TRANSLATION))
+    return tuple(variants)
+
+
+def _decoded_base64_fragments(text: str) -> set[str]:
+    """Decode printable UTF-8 Base64 fragments without accepting arbitrary binary data."""
+    decoded_fragments: set[str] = set()
+    for match in _BASE64_TOKEN_PATTERN.finditer(text):
+        token = match.group(0)
+        padded = token + "=" * (-len(token) % 4)
+        try:
+            decoded = base64.b64decode(padded, altchars=b"-_", validate=True).decode("utf-8")
+        except (binascii.Error, UnicodeDecodeError, ValueError):
+            continue
+        if len(decoded) > 4_000:
+            continue
+        if decoded and all(character.isprintable() or character.isspace() for character in decoded):
+            decoded_fragments.add(_strip_format_characters(decoded))
+    return decoded_fragments
+
+
+def _strip_format_characters(text: str) -> str:
+    """Remove invisible Unicode format characters used to split detection terms."""
+    return "".join(character for character in text if unicodedata.category(character) != "Cf")
 
 
 def _blocked_result() -> GuardResult:

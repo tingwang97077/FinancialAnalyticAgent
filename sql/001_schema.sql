@@ -87,6 +87,7 @@ CREATE TABLE query_logs (
     latency_ms    INT,
     input_tokens  INT,
     output_tokens INT,
+    cached_tokens INT,
     cost_usd      NUMERIC,
     grounded      BOOLEAN,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()

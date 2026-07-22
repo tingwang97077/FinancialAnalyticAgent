@@ -62,12 +62,27 @@ class RetrievalPipeline:
         rerank_count = (
             self._default_top_n if top_n is None else _positive_integer(top_n, name="top_n")
         )
-        filters = _metadata_filters(understanding)
-        chunks = self._index.search(
-            understanding.rewritten_query,
-            filters=filters,
-            k=result_count,
+        prepared_query = (
+            self._index.prepare_query(understanding.rewritten_query)
+            if isinstance(self._index, HybridSearchIndex)
+            else None
         )
+
+        def search(filters: dict[str, object]) -> list[Chunk]:
+            if prepared_query is not None and isinstance(self._index, HybridSearchIndex):
+                return self._index.search_prepared(
+                    prepared_query,
+                    filters=filters,
+                    k=result_count,
+                )
+            return self._index.search(
+                understanding.rewritten_query,
+                filters=filters,
+                k=result_count,
+            )
+
+        filters = _metadata_filters(understanding)
+        chunks = search(filters)
         if not chunks and understanding.intent is Intent.HYBRID:
             relaxed_filters = _without_numeric_period_filters(filters)
             if relaxed_filters != filters:
@@ -75,16 +90,17 @@ class RetrievalPipeline:
                     "No hybrid narrative evidence matched numeric period filters; "
                     "retrying with company and section filters."
                 )
-                chunks = self._index.search(
-                    understanding.rewritten_query,
-                    filters=relaxed_filters,
-                    k=result_count,
-                )
+                chunks = search(relaxed_filters)
         return self._reranker.rerank(
             understanding.rewritten_query,
             chunks,
             rerank_count,
         )
+
+    def preload(self) -> None:
+        """Load the configured reranker once for the current process."""
+        if isinstance(self._reranker, CrossEncoderReranker):
+            self._reranker.preload()
 
 
 def retrieval_tool(
@@ -99,6 +115,11 @@ def retrieval_tool(
         k=k,
         top_n=top_n,
     )
+
+
+def preload_retrieval() -> None:
+    """Warm the process-local retrieval pipeline before serving requests."""
+    _get_default_retrieval_pipeline().preload()
 
 
 @lru_cache(maxsize=1)

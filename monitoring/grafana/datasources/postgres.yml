@@ -1,0 +1,23 @@
+apiVersion: 1
+
+deleteDatasources:
+  - name: FFA PostgreSQL
+    orgId: 1
+
+datasources:
+  - name: FFA PostgreSQL
+    uid: ffa-postgres
+    orgId: 1
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    user: ffa_ro
+    isDefault: true
+    editable: false
+    jsonData:
+      database: ffa
+      sslmode: disable
+      postgresVersion: 1700
+      timescaledb: false
+    secureJsonData:
+      password: $GRAFANA_DATABASE_PASSWORD

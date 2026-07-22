@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
+import unicodedata
 from collections.abc import Callable
 from functools import lru_cache
 from typing import TYPE_CHECKING, Protocol
@@ -11,10 +14,13 @@ from openai import OpenAI
 
 from ffa.agent.schemas import Answer, Citation, NumberFact
 from ffa.config import Settings, get_settings
+from ffa.monitoring.tracing import record_openai_response
 from ffa.retrieval.base import Chunk
 
 if TYPE_CHECKING:
     from ffa.agent.router import AgentContext
+
+logger = logging.getLogger(__name__)
 
 _GENERATION_INSTRUCTIONS = """You write grounded financial answers from supplied evidence.
 
@@ -34,6 +40,21 @@ _UNSUPPORTED_CLAIMS_TEXT = (
     "grounding validation."
 )
 _NO_GROUNDED_ANSWER_TEXT = "The generated response could not be grounded in the retrieved evidence."
+_PROMPT_DISCLOSURE_BLOCKED_TEXT = "The response was withheld by the safety policy."
+_PROMPT_NGRAM_SIZE = 7
+_PROMPT_DISCLOSURE_PATTERNS = tuple(
+    re.compile(pattern, flags=re.IGNORECASE | re.DOTALL)
+    for pattern in (
+        r"\b(?:system|developer|hidden|internal)\s+(?:prompt|message|instructions?|rules?)\b",
+        r"\b(?:my|the)\s+(?:system|developer)\s+(?:prompt|message|instructions?)\b",
+        r"(?:^|\n)\s*(?:system|developer)\s*:",
+        r"\b(?:here (?:is|are)|the following (?:is|are))\b.{0,60}"
+        r"\b(?:prompt|instructions?|rules?)\b",
+        r"\b(?:prompt|message|instructions?|r[eè]gles?)\s+"
+        r"(?:syst[eè]me|d[eé]veloppeur|internes?|cach[eé]es?)\b",
+        r"\bvoici\b.{0,60}\b(?:prompt|instructions?|r[eè]gles?)\b",
+    )
+)
 
 type NumberKey = tuple[str, int, str, float, str]
 type GenerationCallable = Callable[[str, AgentContext], Answer]
@@ -86,6 +107,7 @@ class OpenAIGenerationProvider:
             text_format=Answer,
             metadata={"trace_id": context.trace_id},
         )
+        record_openai_response(response, model=model)
         parsed = response.output_parsed
         if parsed is None:
             raise RuntimeError("The model did not return a structured answer.")
@@ -122,6 +144,9 @@ class AnswerGenerator:
             context,
             model=self._model,
         )
+        if _contains_prompt_disclosure(draft.text):
+            logger.warning("Generated answer withheld by safety policy.")
+            return Answer(text=_PROMPT_DISCLOSURE_BLOCKED_TEXT, grounded=False)
         return _validate_grounding(draft, context)
 
 
@@ -241,3 +266,28 @@ def _validated_citations(
             valid.append(canonical)
             seen.add(key)
     return valid, invalid
+
+
+def _contains_prompt_disclosure(text: str) -> bool:
+    """Detect direct, labeled, or verbatim disclosure of protected instructions."""
+    normalized_text = unicodedata.normalize("NFKC", text).casefold()
+    if any(pattern.search(normalized_text) is not None for pattern in _PROMPT_DISCLOSURE_PATTERNS):
+        return True
+    normalized_words = _normalized_instruction_words(normalized_text)
+    return any(ngram in normalized_words for ngram in _protected_prompt_ngrams())
+
+
+@lru_cache(maxsize=1)
+def _protected_prompt_ngrams() -> frozenset[str]:
+    """Return exact word windows that identify verbatim generation instructions."""
+    normalized_prompt = _normalized_instruction_words(_GENERATION_INSTRUCTIONS)
+    words = normalized_prompt.split()
+    return frozenset(
+        " ".join(words[index : index + _PROMPT_NGRAM_SIZE])
+        for index in range(len(words) - _PROMPT_NGRAM_SIZE + 1)
+    )
+
+
+def _normalized_instruction_words(text: str) -> str:
+    """Normalize instruction text for punctuation-independent comparison."""
+    return " ".join(re.findall(r"[a-z0-9]+", text.casefold()))

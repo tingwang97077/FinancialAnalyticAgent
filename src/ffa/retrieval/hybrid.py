@@ -2,7 +2,18 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from ffa.retrieval.base import Chunk, SearchIndex, validate_search_request
+from ffa.retrieval.vector_search import PreparedVectorQuery, VectorSearchIndex
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedHybridQuery:
+    """Normalized text and an optional reusable vector query."""
+
+    text: str
+    vector_query: PreparedVectorQuery | None
 
 
 class HybridSearchIndex:
@@ -38,17 +49,50 @@ class HybridSearchIndex:
         k: int,
     ) -> list[Chunk]:
         """Return rank-fused chunks without comparing raw backend scores."""
-        normalized_query = validate_search_request(query, k)
+        prepared_query = self.prepare_query(query)
+        return self.search_prepared(prepared_query, filters=filters, k=k)
+
+    def prepare_query(self, query: str) -> PreparedHybridQuery:
+        """Prepare one query for repeated searches with different filters."""
+        normalized_query = validate_search_request(query, 1)
+        vector_query = (
+            self._vector_index.prepare_query(normalized_query)
+            if isinstance(self._vector_index, VectorSearchIndex)
+            else None
+        )
+        return PreparedHybridQuery(
+            text=normalized_query,
+            vector_query=vector_query,
+        )
+
+    def search_prepared(
+        self,
+        prepared_query: PreparedHybridQuery,
+        *,
+        filters: dict[str, object],
+        k: int,
+    ) -> list[Chunk]:
+        """Search both legs while reusing a prepared vector query."""
+        normalized_query = validate_search_request(prepared_query.text, k)
         candidate_k = k * self._candidate_multiplier
         text_results = self._text_index.search(
             normalized_query,
             filters=filters,
             k=candidate_k,
         )
-        vector_results = self._vector_index.search(
-            normalized_query,
-            filters=filters,
-            k=candidate_k,
+        vector_results = (
+            self._vector_index.search_prepared(
+                prepared_query.vector_query,
+                filters=filters,
+                k=candidate_k,
+            )
+            if isinstance(self._vector_index, VectorSearchIndex)
+            and prepared_query.vector_query is not None
+            else self._vector_index.search(
+                normalized_query,
+                filters=filters,
+                k=candidate_k,
+            )
         )
 
         fused: dict[int, Chunk] = {}

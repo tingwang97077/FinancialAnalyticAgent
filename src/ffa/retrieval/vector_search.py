@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from sqlalchemy import Engine, text
 from sqlalchemy.engine import Connection
@@ -21,6 +22,14 @@ from ffa.retrieval.base import (
 )
 
 _SET_EF_SEARCH_SQL = text("SELECT set_config('hnsw.ef_search', :ef_search, true)")
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedVectorQuery:
+    """Validated query text and its reusable embedding."""
+
+    text: str
+    embedding: tuple[float, ...]
 
 
 class VectorSearchIndex:
@@ -54,8 +63,31 @@ class VectorSearchIndex:
         k: int,
     ) -> list[Chunk]:
         """Return chunks ordered by pgvector cosine distance."""
-        normalized_query = validate_search_request(query, k)
-        query_embedding = self._embed_query(normalized_query)
+        prepared_query = self.prepare_query(query)
+        return self.search_prepared(prepared_query, filters=filters, k=k)
+
+    def prepare_query(self, query: str) -> PreparedVectorQuery:
+        """Embed one query for reuse across searches with different filters."""
+        normalized_query = validate_search_request(query, 1)
+        return PreparedVectorQuery(
+            text=normalized_query,
+            embedding=tuple(self._embed_query(normalized_query)),
+        )
+
+    def search_prepared(
+        self,
+        prepared_query: PreparedVectorQuery,
+        *,
+        filters: dict[str, object],
+        k: int,
+    ) -> list[Chunk]:
+        """Search with a previously validated query embedding."""
+        validate_search_request(prepared_query.text, k)
+        query_embedding = prepared_query.embedding
+        if len(query_embedding) != self._embedding_dim or not all(
+            math.isfinite(value) for value in query_embedding
+        ):
+            raise ValueError("Prepared query embedding has an invalid vector shape or value.")
         filter_sql, filter_parameters = build_filter_sql(filters)
         statement = text(
             f"""

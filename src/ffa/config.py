@@ -1,9 +1,10 @@
 """Application settings loaded from environment variables."""
 
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,7 +40,16 @@ class Settings(BaseSettings):
 
     langfuse_public_key: SecretStr | None = None
     langfuse_secret_key: SecretStr | None = None
-    langfuse_host: str = "https://cloud.langfuse.com"
+    langfuse_host: str = ""
+    langfuse_base_url: str = ""
+
+    price_mini_input: Decimal | None = Field(default=None, ge=0)
+    price_mini_cached_input: Decimal | None = Field(default=None, ge=0)
+    price_mini_output: Decimal | None = Field(default=None, ge=0)
+    price_nano_input: Decimal | None = Field(default=None, ge=0)
+    price_nano_cached_input: Decimal | None = Field(default=None, ge=0)
+    price_nano_output: Decimal | None = Field(default=None, ge=0)
+    price_embedding: Decimal | None = Field(default=None, ge=0)
 
     airflow_core_executor: str = Field(
         default="LocalExecutor",
@@ -54,6 +64,28 @@ class Settings(BaseSettings):
     def ticker_symbols(self) -> tuple[str, ...]:
         """Return configured ticker symbols in normalized input order."""
         return tuple(symbol.strip() for symbol in self.ticker_universe.split(",") if symbol.strip())
+
+    @property
+    def langfuse_endpoint(self) -> str | None:
+        """Return LANGFUSE_HOST, falling back to LANGFUSE_BASE_URL."""
+        return self.langfuse_host.strip() or self.langfuse_base_url.strip() or None
+
+    @field_validator(
+        "price_mini_input",
+        "price_mini_cached_input",
+        "price_mini_output",
+        "price_nano_input",
+        "price_nano_cached_input",
+        "price_nano_output",
+        "price_embedding",
+        mode="before",
+    )
+    @classmethod
+    def _empty_price_is_unconfigured(cls, value: object) -> object:
+        """Allow blank example values without inventing a default price."""
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 @lru_cache(maxsize=1)

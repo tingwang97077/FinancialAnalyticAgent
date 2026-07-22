@@ -8,6 +8,7 @@ from typing import Protocol
 from openai import OpenAI
 
 from ffa.config import Settings, get_settings
+from ffa.monitoring.tracing import record_openai_response
 
 
 class EmbeddingProvider(Protocol):
@@ -75,6 +76,11 @@ class OpenAIClient:
             model=self._embedding_model,
             input=list(texts),
             dimensions=dimensions,
+        )
+        record_openai_response(
+            response,
+            model=self._embedding_model,
+            kind="embedding",
         )
         ordered_data = sorted(response.data, key=lambda item: item.index)
         if len(ordered_data) != len(texts):

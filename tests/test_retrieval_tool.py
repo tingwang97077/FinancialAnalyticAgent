@@ -8,6 +8,8 @@ import ffa.agent.tools.retrieval_tool as retrieval_tool_module
 from ffa.agent.schemas import Entities, Intent, Understanding
 from ffa.agent.tools.retrieval_tool import RetrievalPipeline, retrieval_tool
 from ffa.retrieval.base import Chunk
+from ffa.retrieval.hybrid import HybridSearchIndex
+from ffa.retrieval.vector_search import PreparedVectorQuery, VectorSearchIndex
 
 
 class FakeHybridIndex:
@@ -49,6 +51,28 @@ class FakeReranker:
     def rerank(self, query: str, chunks: list[Chunk], top_n: int) -> list[Chunk]:
         self.calls.append((query, chunks, top_n))
         return list(reversed(chunks))[:top_n]
+
+
+class CountingPreparedVectorIndex(VectorSearchIndex):
+    """Minimal vector leg that counts preparation separately from SQL passes."""
+
+    def __init__(self) -> None:
+        self.prepare_calls: list[str] = []
+        self.search_calls: list[tuple[PreparedVectorQuery, dict[str, object], int]] = []
+
+    def prepare_query(self, query: str) -> PreparedVectorQuery:
+        self.prepare_calls.append(query)
+        return PreparedVectorQuery(text=query, embedding=(1.0,))
+
+    def search_prepared(
+        self,
+        prepared_query: PreparedVectorQuery,
+        *,
+        filters: dict[str, object],
+        k: int,
+    ) -> list[Chunk]:
+        self.search_calls.append((prepared_query, filters, k))
+        return []
 
 
 def test_retrieval_pipeline_searches_then_reranks_with_entity_filters() -> None:
@@ -150,6 +174,48 @@ def test_hybrid_retrieval_relaxes_only_periods_after_empty_filtered_search() -> 
     ]
     assert reranker.calls == [(understanding.rewritten_query, [chunk], 5)]
     assert results == [chunk]
+
+
+def test_hybrid_fallback_prepares_query_embedding_only_once() -> None:
+    chunk = _chunk(1)
+    text_index = SequencedHybridIndex([[], [chunk]])
+    vector_index = CountingPreparedVectorIndex()
+    reranker = FakeReranker()
+    pipeline = RetrievalPipeline(
+        index=HybridSearchIndex(text_index, vector_index),
+        reranker=reranker,
+        default_k=20,
+        default_top_n=5,
+    )
+    understanding = Understanding(
+        intent=Intent.HYBRID,
+        entities=Entities(
+            tickers=["AAPL"],
+            ciks=[320193],
+            metrics=["net_income"],
+            fiscal_years=[2024],
+            sections=["Risk Factors"],
+        ),
+        rewritten_query="Apple net income and supply chain risks",
+    )
+
+    results = pipeline.retrieve(understanding)
+
+    expected_filtered = {
+        "ticker": ["AAPL"],
+        "fiscal_year": [2024],
+        "section": ["Risk Factors"],
+    }
+    expected_relaxed = {
+        "ticker": ["AAPL"],
+        "section": ["Risk Factors"],
+    }
+    assert vector_index.prepare_calls == [understanding.rewritten_query]
+    assert [call[1] for call in vector_index.search_calls] == [
+        expected_filtered,
+        expected_relaxed,
+    ]
+    assert [chunk["id"] for chunk in results] == [1]
 
 
 def test_public_retrieval_tool_delegates_to_cached_pipeline(

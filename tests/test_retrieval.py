@@ -185,6 +185,34 @@ def test_vector_search_uses_cosine_hnsw_operator_filters_and_query_model() -> No
     assert results[0]["score"] == pytest.approx(0.92)
 
 
+def test_vector_search_reuses_one_prepared_embedding_across_filter_passes() -> None:
+    engine = FakeEngine([_sql_row(2, score=0.92)])
+    provider = FakeEmbeddingProvider([1.0, 0.0, 0.0])
+    index = VectorSearchIndex(
+        engine=engine,  # type: ignore[arg-type]
+        embedding_provider=provider,
+        settings=Settings(_env_file=None, embedding_dim=3),
+    )
+
+    prepared_query = index.prepare_query("services revenue growth")
+    first = index.search_prepared(
+        prepared_query,
+        filters={"ticker": ["AAPL"], "fiscal_year": [2024]},
+        k=4,
+    )
+    second = index.search_prepared(
+        prepared_query,
+        filters={"ticker": ["AAPL"]},
+        k=4,
+    )
+
+    assert provider.calls == [(["services revenue growth"], 3)]
+    assert first == second
+    search_calls = [call for call in engine.connection.calls if "set_config" not in call[0]]
+    assert len(search_calls) == 2
+    assert search_calls[0][1]["query_embedding"] == search_calls[1][1]["query_embedding"]
+
+
 def test_filter_builder_rejects_unknown_or_invalid_filters() -> None:
     with pytest.raises(ValueError, match="Unsupported retrieval filters"):
         build_filter_sql({"accession_no": "unsafe"})
@@ -274,6 +302,22 @@ def test_cross_encoder_loads_once_and_reranks_copies() -> None:
     assert second[0]["id"] == 2
     assert factory_calls == ["test-cross-encoder"]
     assert "rerank_score" not in chunks[0]
+
+
+def test_cross_encoder_preload_warms_the_same_model_used_for_reranking() -> None:
+    factory_calls: list[str] = []
+
+    def factory(model_name: str) -> FakeCrossEncoder:
+        factory_calls.append(model_name)
+        return FakeCrossEncoder()
+
+    reranker = CrossEncoderReranker("test-cross-encoder", model_factory=factory)
+
+    reranker.preload()
+    result = reranker.rerank("services", [_chunk(1, 0.5, text="Services grew.")], 1)
+
+    assert factory_calls == ["test-cross-encoder"]
+    assert [chunk["id"] for chunk in result] == [1]
 
 
 def test_noop_reranker_preserves_retrieval_order() -> None:

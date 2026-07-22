@@ -19,6 +19,7 @@ from ffa.agent.tools.retrieval_tool import retrieval_tool
 from ffa.agent.tools.sql_tool import sql_tool
 from ffa.agent.understanding import understand
 from ffa.config import Settings, get_settings
+from ffa.monitoring.tracing import observe_step, record_openai_response
 from ffa.retrieval.base import Chunk
 
 _OUT_OF_SCOPE_REFUSAL = (
@@ -165,6 +166,7 @@ class OpenAIFunctionCallPlanner:
             parallel_tool_calls=len(expected_tools) > 1,
             metadata={"trace_id": trace_id},
         )
+        record_openai_response(response, model=self._model)
         calls: list[PlannedToolCall] = []
         for item in response.output:
             if item.type != "function_call":
@@ -199,8 +201,14 @@ def route_understanding(
     if len(call_names) != len(expected_tools) or set(call_names) != set(expected_tools):
         raise RoutingError("The tool planner did not follow the classified intent.")
 
-    facts = sql_runner(understanding) if "sql_tool" in expected_tools else []
-    chunks = retrieval_runner(understanding) if "retrieval_tool" in expected_tools else []
+    facts: list[NumberFact] = []
+    if "sql_tool" in expected_tools:
+        with observe_step("sql_tool"):
+            facts = sql_runner(understanding)
+    chunks: list[Chunk] = []
+    if "retrieval_tool" in expected_tools:
+        with observe_step("retrieval_tool"):
+            chunks = retrieval_runner(understanding)
     return AgentContext(
         facts=facts,
         chunks=chunks,
@@ -222,7 +230,8 @@ def run_agent(
 ) -> AgentRun:
     """Run guardrails, understanding, intent-bound tools, and grounded generation."""
     resolved_trace_id = _resolve_trace_id(trace_id)
-    guard_result = guardrail_checker(question)
+    with observe_step("guardrails.check_input"):
+        guard_result = guardrail_checker(question)
     if not guard_result.allowed:
         context = AgentContext(route="blocked", trace_id=resolved_trace_id)
         return AgentRun(
@@ -230,23 +239,24 @@ def run_agent(
             context=context,
         )
 
-    understanding = understanding_fn(question)
-    context = route_understanding(
-        understanding,
-        trace_id=resolved_trace_id,
-        planner=planner,
-        sql_runner=sql_runner,
-        retrieval_runner=retrieval_runner,
-    )
+    with observe_step("understand"):
+        understanding = understanding_fn(question)
+    with observe_step("router"):
+        context = route_understanding(
+            understanding,
+            trace_id=resolved_trace_id,
+            planner=planner,
+            sql_runner=sql_runner,
+            retrieval_runner=retrieval_runner,
+        )
     if understanding.intent is Intent.OUT_OF_SCOPE:
         return AgentRun(
             answer=Answer(text=_OUT_OF_SCOPE_REFUSAL, grounded=True),
             context=context,
         )
-    return AgentRun(
-        answer=answer_generator(question, context),
-        context=context,
-    )
+    with observe_step("generation"):
+        answer = answer_generator(question, context)
+    return AgentRun(answer=answer, context=context)
 
 
 @lru_cache(maxsize=1)
