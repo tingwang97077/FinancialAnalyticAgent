@@ -3,6 +3,7 @@
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -36,6 +37,12 @@ class Settings(BaseSettings):
     chunk_overlap: float = Field(default=0.15, ge=0, lt=1)
     retrieval_top_k: int = Field(default=20, gt=0)
     rerank_top_n: int = Field(default=5, gt=0)
+    retrieval_strategy: Literal[
+        "vector_rerank",
+        "hybrid_rerank",
+        "vector",
+        "hybrid",
+    ] = "vector_rerank"
     embedding_dim: int = Field(default=1536, gt=0)
 
     langfuse_public_key: SecretStr | None = None

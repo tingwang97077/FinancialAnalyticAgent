@@ -7,8 +7,10 @@ import pytest
 import ffa.agent.tools.retrieval_tool as retrieval_tool_module
 from ffa.agent.schemas import Entities, Intent, Understanding
 from ffa.agent.tools.retrieval_tool import RetrievalPipeline, retrieval_tool
+from ffa.config import Settings
 from ffa.retrieval.base import Chunk
 from ffa.retrieval.hybrid import HybridSearchIndex
+from ffa.retrieval.rerank import CrossEncoderReranker, NoOpReranker
 from ffa.retrieval.vector_search import PreparedVectorQuery, VectorSearchIndex
 
 
@@ -56,9 +58,10 @@ class FakeReranker:
 class CountingPreparedVectorIndex(VectorSearchIndex):
     """Minimal vector leg that counts preparation separately from SQL passes."""
 
-    def __init__(self) -> None:
+    def __init__(self, responses: list[list[Chunk]] | None = None) -> None:
         self.prepare_calls: list[str] = []
         self.search_calls: list[tuple[PreparedVectorQuery, dict[str, object], int]] = []
+        self.responses = responses or []
 
     def prepare_query(self, query: str) -> PreparedVectorQuery:
         self.prepare_calls.append(query)
@@ -72,7 +75,49 @@ class CountingPreparedVectorIndex(VectorSearchIndex):
         k: int,
     ) -> list[Chunk]:
         self.search_calls.append((prepared_query, filters, k))
-        return []
+        call_index = len(self.search_calls) - 1
+        if call_index >= len(self.responses):
+            return []
+        return self.responses[call_index][:k]
+
+
+@pytest.mark.parametrize(
+    ("strategy", "index_type", "reranker_type"),
+    [
+        ("vector_rerank", VectorSearchIndex, CrossEncoderReranker),
+        ("hybrid_rerank", HybridSearchIndex, CrossEncoderReranker),
+        ("vector", VectorSearchIndex, NoOpReranker),
+        ("hybrid", HybridSearchIndex, NoOpReranker),
+    ],
+)
+def test_from_settings_selects_configured_retrieval_strategy(
+    strategy: str,
+    index_type: type[object],
+    reranker_type: type[object],
+) -> None:
+    settings = Settings(
+        _env_file=None,
+        database_url="sqlite+pysqlite://",
+        openai_api_key="test-key",
+        embedding_dim=3,
+        retrieval_strategy=strategy,
+    )
+
+    pipeline = RetrievalPipeline.from_settings(settings)
+
+    assert isinstance(pipeline._index, index_type)
+    assert isinstance(pipeline._reranker, reranker_type)
+
+
+def test_default_retrieval_strategy_is_vector_rerank() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.retrieval_strategy == "vector_rerank"
+
+
+def test_unknown_retrieval_strategy_is_rejected() -> None:
+    with pytest.raises(ValueError, match="retrieval_strategy"):
+        Settings(_env_file=None, retrieval_strategy="bm25")
 
 
 def test_retrieval_pipeline_searches_then_reranks_with_entity_filters() -> None:
@@ -214,6 +259,45 @@ def test_hybrid_fallback_prepares_query_embedding_only_once() -> None:
     assert [call[1] for call in vector_index.search_calls] == [
         expected_filtered,
         expected_relaxed,
+    ]
+    assert [chunk["id"] for chunk in results] == [1]
+
+
+def test_vector_fallback_prepares_query_embedding_only_once() -> None:
+    chunk = _chunk(1)
+    vector_index = CountingPreparedVectorIndex([[], [chunk]])
+    reranker = FakeReranker()
+    pipeline = RetrievalPipeline(
+        index=vector_index,
+        reranker=reranker,
+        default_k=20,
+        default_top_n=5,
+    )
+    understanding = Understanding(
+        intent=Intent.HYBRID,
+        entities=Entities(
+            tickers=["AAPL"],
+            ciks=[320193],
+            metrics=["net_income"],
+            fiscal_years=[2024],
+            sections=["Risk Factors"],
+        ),
+        rewritten_query="Apple net income and supply chain risks",
+    )
+
+    results = pipeline.retrieve(understanding)
+
+    assert vector_index.prepare_calls == [understanding.rewritten_query]
+    assert [call[1] for call in vector_index.search_calls] == [
+        {
+            "ticker": ["AAPL"],
+            "fiscal_year": [2024],
+            "section": ["Risk Factors"],
+        },
+        {
+            "ticker": ["AAPL"],
+            "section": ["Risk Factors"],
+        },
     ]
     assert [chunk["id"] for chunk in results] == [1]
 

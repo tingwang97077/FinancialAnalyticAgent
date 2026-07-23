@@ -1,0 +1,248 @@
+{
+  "version": 1,
+  "seed": 42,
+  "generated_at": "2026-07-23T19:10:39.260302Z",
+  "retrieval_corpus_fingerprint": "86778f6db0d14c7fddd5ce2d87680073194a29e690129820920ef258ece27cfd",
+  "cases": [
+    {
+      "case_id": "narrative-001",
+      "question": "For MRK, how does IRA government price setting under Parts D and B, plus MFN agreements and 340B pressures, affect expected sales and private-market pricing?",
+      "expected_accession_no": "0000310158-26-000063",
+      "expected_section": "MD&A",
+      "expected_chunk_index": 7,
+      "ticker": "MRK"
+    },
+    {
+      "case_id": "narrative-002",
+      "question": "What risk does Home Depot (HD) disclose about legal and regulatory proceedings potentially increasing operating costs, harming reputation, or resulting in excessive verdicts?",
+      "expected_accession_no": "0001628280-26-019436",
+      "expected_section": "Risk Factors",
+      "expected_chunk_index": 23,
+      "ticker": "HD"
+    },
+    {
+      "case_id": "narrative-003",
+      "question": "What does Walmart (WMT) disclose about its auditor’s critical audit matter standard—specifically relating to material accounts and subjective or complex judgments?",
+      "expected_accession_no": "0000104169-26-000055",
+      "expected_section": "Notes",
+      "expected_chunk_index": 0,
+      "ticker": "WMT"
+    },
+    {
+      "case_id": "narrative-004",
+      "question": "For NVIDIA (NVDA), how does the company treat expected credit losses and security write-downs in its income statement classification and measurement of marketable investments?",
+      "expected_accession_no": "0001045810-26-000021",
+      "expected_section": "Notes",
+      "expected_chunk_index": 4,
+      "ticker": "NVDA"
+    },
+    {
+      "case_id": "narrative-005",
+      "question": "For Merck (MRK), what does the company state about forward-looking statements, including whether it assumes any duty to update them?",
+      "expected_accession_no": "0000310158-26-000063",
+      "expected_section": "MD&A",
+      "expected_chunk_index": 47,
+      "ticker": "MRK"
+    },
+    {
+      "case_id": "narrative-006",
+      "question": "For Amazon (AMZN), how does the company allocate segment assets and attribute net sales across North America, International, and AWS?",
+      "expected_accession_no": "0001018724-26-000004",
+      "expected_section": "Notes",
+      "expected_chunk_index": 32,
+      "ticker": "AMZN"
+    },
+    {
+      "case_id": "narrative-007",
+      "question": "For Pfizer (PFE), what EU legislative or regulatory initiatives are cited as potentially affecting its business, and where is additional regulatory information referenced?",
+      "expected_accession_no": "0000078003-26-000026",
+      "expected_section": "Risk Factors",
+      "expected_chunk_index": 27,
+      "ticker": "PFE"
+    },
+    {
+      "case_id": "narrative-008",
+      "question": "For Meta Platforms (META), what were the key drivers behind the year-over-year growth in 2025 Family of Apps advertising revenue, including ad impressions and average price changes?",
+      "expected_accession_no": "0001628280-26-003942",
+      "expected_section": "MD&A",
+      "expected_chunk_index": 11,
+      "ticker": "META"
+    },
+    {
+      "case_id": "narrative-009",
+      "question": "For Mastercard (MA), how do management’s acquisition-date fair value estimates and assigned useful lives affect future amortization and goodwill recognition?",
+      "expected_accession_no": "0001141391-26-000013",
+      "expected_section": "MD&A",
+      "expected_chunk_index": 13,
+      "ticker": "MA"
+    },
+    {
+      "case_id": "narrative-010",
+      "question": "For JNJ, what geographic and segment sales growth rates are reported for 2025, and how does the company describe operational versus currency impacts?",
+      "expected_accession_no": "0000200406-26-000016",
+      "expected_section": "MD&A",
+      "expected_chunk_index": 2,
+      "ticker": "JNJ"
+    },
+    {
+      "case_id": "narrative-011",
+      "question": "How does Broadcom (AVGO) describe its use of Level 3 fair value inputs and the role of credit and going-concern indicators in those measurements?",
+      "expected_accession_no": "0001730168-25-000121",
+      "expected_section": "Notes",
+      "expected_chunk_index": 8,
+      "ticker": "AVGO"
+    },
+    {
+      "case_id": "narrative-012",
+      "question": "For AbbVie, how does the risk disclosure describe how patent challenges or biosimilar approvals could erode exclusivity and increase litigation exposure?",
+      "expected_accession_no": "0001551152-26-000008",
+      "expected_section": "Risk Factors",
+      "expected_chunk_index": 1,
+      "ticker": "ABBV"
+    },
+    {
+      "case_id": "narrative-013",
+      "question": "For Meta Platforms (META), how are employee compensation and segment cost categories allocated between Family of Apps and Reality Labs for the segment reporting tables?",
+      "expected_accession_no": "0001628280-26-003942",
+      "expected_section": "Notes",
+      "expected_chunk_index": 41,
+      "ticker": "META"
+    },
+    {
+      "case_id": "narrative-014",
+      "question": "For Meta Platforms (META), what were the primary drivers of the 2025 increase in sales expenses and general and administrative costs, including any legal-related effects?",
+      "expected_accession_no": "0001628280-26-003942",
+      "expected_section": "MD&A",
+      "expected_chunk_index": 13,
+      "ticker": "META"
+    },
+    {
+      "case_id": "narrative-015",
+      "question": "For Mastercard (MA), how does sustained pricing pressure affect incentives and discounts, and why may higher incentive spend hinder volume growth and profitability?",
+      "expected_accession_no": "0001141391-26-000013",
+      "expected_section": "Risk Factors",
+      "expected_chunk_index": 9,
+      "ticker": "MA"
+    },
+    {
+      "case_id": "narrative-016",
+      "question": "How does Amazon (AMZN) account for long-term electricity supply energy contracts when settlement occurs via net cash payments instead of power delivery?",
+      "expected_accession_no": "0001018724-26-000004",
+      "expected_section": "Notes",
+      "expected_chunk_index": 9,
+      "ticker": "AMZN"
+    },
+    {
+      "case_id": "narrative-017",
+      "question": "For JPMorgan Chase (JPM), what driven details are provided for Real Estate criticized exposure movements in 2025 versus 2024, including reported drivers and concentration?",
+      "expected_accession_no": "0001628280-26-008131",
+      "expected_section": "MD&A",
+      "expected_chunk_index": 66,
+      "ticker": "JPM"
+    },
+    {
+      "case_id": "narrative-018",
+      "question": "For Coca-Cola (KO), how could a cybersecurity incident affect financial reporting timing and revenue related to manufacturing, distribution, invoicing, and collections?",
+      "expected_accession_no": "0001628280-26-010047",
+      "expected_section": "Risk Factors",
+      "expected_chunk_index": 21,
+      "ticker": "KO"
+    },
+    {
+      "case_id": "narrative-019",
+      "question": "What new Rinvoq and Qulipta regulatory or clinical developments does AbbVie (ABBV) report, including the sNDA update and major Phase 3 topline results?",
+      "expected_accession_no": "0001551152-26-000008",
+      "expected_section": "MD&A",
+      "expected_chunk_index": 4,
+      "ticker": "ABBV"
+    },
+    {
+      "case_id": "narrative-020",
+      "question": "For Walmart (WMT), how does it define expense leverage and operating income leverage, and what specific drivers explain margin-rate changes in fiscal 2026?",
+      "expected_accession_no": "0000104169-26-000055",
+      "expected_section": "MD&A",
+      "expected_chunk_index": 3,
+      "ticker": "WMT"
+    },
+    {
+      "case_id": "narrative-021",
+      "question": "How does Walt Disney (DIS) describe the financial statement risk that its cruise, parks/resorts, and direct-to-consumer investments could generate negative returns?",
+      "expected_accession_no": "0001744489-25-000155",
+      "expected_section": "Risk Factors",
+      "expected_chunk_index": 6,
+      "ticker": "DIS"
+    },
+    {
+      "case_id": "narrative-022",
+      "question": "For Bank of America (BAC), how are 2025 and 2024 RSUs expensed—especially variable-share-price settlements—and what is the unrecognized compensation cost at December 31, 2025?",
+      "expected_accession_no": "0000070858-26-000157",
+      "expected_section": "Notes",
+      "expected_chunk_index": 72,
+      "ticker": "BAC"
+    },
+    {
+      "case_id": "narrative-023",
+      "question": "How does Microsoft (MSFT) describe the impact of restrictive U.S. immigration rules and unionization on its ability to recruit, retain talent, and manage costs?",
+      "expected_accession_no": "0000950170-25-100235",
+      "expected_section": "Risk Factors",
+      "expected_chunk_index": 20,
+      "ticker": "MSFT"
+    },
+    {
+      "case_id": "narrative-024",
+      "question": "For Procter & Gamble (PG), what IT/OT and cybersecurity risks are highlighted, particularly regarding service providers, and why could an incident have a material business or reputation impact?",
+      "expected_accession_no": "0000080424-25-000076",
+      "expected_section": "Risk Factors",
+      "expected_chunk_index": 5,
+      "ticker": "PG"
+    },
+    {
+      "case_id": "narrative-025",
+      "question": "For Visa, what is the disclosed timeline and procedural outcome for the California consumer interchange case, including dismissal and motions for reconsideration?",
+      "expected_accession_no": "0001403161-25-000089",
+      "expected_section": "Notes",
+      "expected_chunk_index": 43,
+      "ticker": "V"
+    },
+    {
+      "case_id": "narrative-026",
+      "question": "For PepsiCo (PEP), how are gains or losses from pension plan experience and assumption changes recognized in OCI, and when is amortization into earnings triggered?",
+      "expected_accession_no": "0000077476-26-000007",
+      "expected_section": "Notes",
+      "expected_chunk_index": 18,
+      "ticker": "PEP"
+    },
+    {
+      "case_id": "narrative-027",
+      "question": "For Caterpillar (CAT), what restrictive covenant thresholds apply to Cat Financial leverage and interest coverage, and what covenant breach consequences does the company highlight?",
+      "expected_accession_no": "0000018230-26-000008",
+      "expected_section": "Risk Factors",
+      "expected_chunk_index": 11,
+      "ticker": "CAT"
+    },
+    {
+      "case_id": "narrative-028",
+      "question": "For MRK, what audit procedures and evidence testing were performed around U.S. rebate accruals, including control testing and an independent estimate approach?",
+      "expected_accession_no": "0000310158-26-000063",
+      "expected_section": "Notes",
+      "expected_chunk_index": 67,
+      "ticker": "MRK"
+    },
+    {
+      "case_id": "narrative-029",
+      "question": "For Caterpillar (CAT), how could future material cyber incidents affect results, including remediation costs, data loss outcomes, and potential competitiveness impacts?",
+      "expected_accession_no": "0000018230-26-000008",
+      "expected_section": "Risk Factors",
+      "expected_chunk_index": 5,
+      "ticker": "CAT"
+    },
+    {
+      "case_id": "narrative-030",
+      "question": "For Bank of America (BAC), what factors drove the year-over-year increase in home equity balances, and how did HELOC utilization change at December 31, 2025?",
+      "expected_accession_no": "0000070858-26-000157",
+      "expected_section": "MD&A",
+      "expected_chunk_index": 47,
+      "ticker": "BAC"
+    }
+  ]
+}

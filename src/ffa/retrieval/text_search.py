@@ -42,15 +42,28 @@ class TextSearchIndex:
         filter_sql, filter_parameters = build_filter_sql(filters)
         statement = text(
             f"""
-            WITH search_query AS (
-                SELECT plainto_tsquery('english', :query) AS value
+            WITH search_terms AS (
+                SELECT unnest(
+                    tsvector_to_array(to_tsvector('english', :query))
+                ) AS term
+            ),
+            search_query AS (
+                SELECT CASE
+                    WHEN count(*) = 0 THEN NULL
+                    ELSE to_tsquery(
+                        'english',
+                        string_agg(quote_literal(term), ' | ' ORDER BY term)
+                    )
+                END AS value
+                FROM search_terms
             )
             SELECT
                 {CHUNK_SELECT_COLUMNS},
                 ts_rank_cd(dc.text_tsv, sq.value) AS score
             FROM doc_chunks AS dc
             CROSS JOIN search_query AS sq
-            WHERE dc.text_tsv @@ sq.value
+            WHERE sq.value IS NOT NULL
+                AND dc.text_tsv @@ sq.value
                 {filter_sql}
             ORDER BY score DESC, dc.id ASC
             LIMIT :limit

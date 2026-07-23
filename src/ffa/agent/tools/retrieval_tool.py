@@ -1,4 +1,4 @@
-"""Narrative retrieval tool composed from hybrid search and reranking."""
+"""Narrative retrieval tool composed from configurable search and reranking."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from ffa.common.db import create_rw_engine
 from ffa.config import Settings, get_settings
 from ffa.retrieval.base import Chunk, SearchIndex
 from ffa.retrieval.hybrid import HybridSearchIndex
-from ffa.retrieval.rerank import CrossEncoderReranker, Reranker
+from ffa.retrieval.rerank import CrossEncoderReranker, NoOpReranker, Reranker
 from ffa.retrieval.text_search import TextSearchIndex
 from ffa.retrieval.vector_search import VectorSearchIndex
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class RetrievalPipeline:
-    """Apply metadata-filtered hybrid search followed by a pluggable reranker."""
+    """Apply metadata-filtered search followed by a pluggable reranker."""
 
     def __init__(
         self,
@@ -36,14 +36,22 @@ class RetrievalPipeline:
 
     @classmethod
     def from_settings(cls, settings: Settings | None = None) -> RetrievalPipeline:
-        """Build the step-6 hybrid stack with matching query embeddings."""
+        """Build the configured search and reranking strategy."""
         resolved_settings = settings or get_settings()
         engine = create_rw_engine(resolved_settings.database_url)
-        text_index = TextSearchIndex(engine=engine, settings=resolved_settings)
         vector_index = VectorSearchIndex(engine=engine, settings=resolved_settings)
+        strategy = resolved_settings.retrieval_strategy
+        if strategy.startswith("hybrid"):
+            text_index = TextSearchIndex(engine=engine, settings=resolved_settings)
+            index: SearchIndex = HybridSearchIndex(text_index, vector_index)
+        else:
+            index = vector_index
+        reranker: Reranker = (
+            CrossEncoderReranker() if strategy.endswith("_rerank") else NoOpReranker()
+        )
         return cls(
-            index=HybridSearchIndex(text_index, vector_index),
-            reranker=CrossEncoderReranker(),
+            index=index,
+            reranker=reranker,
             default_k=resolved_settings.retrieval_top_k,
             default_top_n=resolved_settings.rerank_top_n,
         )
@@ -62,16 +70,23 @@ class RetrievalPipeline:
         rerank_count = (
             self._default_top_n if top_n is None else _positive_integer(top_n, name="top_n")
         )
-        prepared_query = (
-            self._index.prepare_query(understanding.rewritten_query)
-            if isinstance(self._index, HybridSearchIndex)
-            else None
-        )
+        prepared_hybrid_query = None
+        prepared_vector_query = None
+        if isinstance(self._index, HybridSearchIndex):
+            prepared_hybrid_query = self._index.prepare_query(understanding.rewritten_query)
+        elif isinstance(self._index, VectorSearchIndex):
+            prepared_vector_query = self._index.prepare_query(understanding.rewritten_query)
 
         def search(filters: dict[str, object]) -> list[Chunk]:
-            if prepared_query is not None and isinstance(self._index, HybridSearchIndex):
+            if prepared_hybrid_query is not None and isinstance(self._index, HybridSearchIndex):
                 return self._index.search_prepared(
-                    prepared_query,
+                    prepared_hybrid_query,
+                    filters=filters,
+                    k=result_count,
+                )
+            if prepared_vector_query is not None and isinstance(self._index, VectorSearchIndex):
+                return self._index.search_prepared(
+                    prepared_vector_query,
                     filters=filters,
                     k=result_count,
                 )

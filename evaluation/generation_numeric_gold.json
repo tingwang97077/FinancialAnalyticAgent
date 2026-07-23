@@ -1,0 +1,1288 @@
+{
+  "version": 1,
+  "seed": 42,
+  "generated_at": "2026-07-23T19:10:39.259470Z",
+  "source": "financial_facts",
+  "cases": [
+    {
+      "case_id": "direct-001",
+      "question": "What was MSFT's revenue in FY2025?",
+      "required_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "281724000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "281724000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-002",
+      "question": "What was META's revenue in Q1 FY2026?",
+      "required_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q1",
+          "value": "56311000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q1",
+          "value": "56311000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-003",
+      "question": "What was MCD's revenue in Q2 FY2025?",
+      "required_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q2",
+          "value": "6843000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q2",
+          "value": "6843000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-004",
+      "question": "What was MRK's revenue in Q3 FY2025?",
+      "required_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q3",
+          "value": "17276000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q3",
+          "value": "17276000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-005",
+      "question": "What was JNJ's net income in FY2025?",
+      "required_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "26804000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "26804000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-006",
+      "question": "What was JNJ's net income in Q1 FY2026?",
+      "required_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q1",
+          "value": "5235000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q1",
+          "value": "5235000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-007",
+      "question": "What was PG's net income in Q2 FY2026?",
+      "required_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q2",
+          "value": "4319000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q2",
+          "value": "4319000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-008",
+      "question": "What was MCD's net income in Q3 FY2025?",
+      "required_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q3",
+          "value": "2278000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q3",
+          "value": "2278000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-009",
+      "question": "What was AAPL's total assets in FY2025?",
+      "required_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "359241000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "359241000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-010",
+      "question": "What was NVDA's total assets in Q1 FY2027?",
+      "required_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2027,
+          "fiscal_period": "Q1",
+          "value": "259474000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2027,
+          "fiscal_period": "Q1",
+          "value": "259474000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-011",
+      "question": "What was ABBV's total assets in Q2 FY2025?",
+      "required_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q2",
+          "value": "137182000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q2",
+          "value": "137182000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-012",
+      "question": "What was DIS's total assets in Q3 FY2025?",
+      "required_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q3",
+          "value": "196612000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q3",
+          "value": "196612000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-013",
+      "question": "What was BAC's total liabilities in FY2025?",
+      "required_facts": [
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "3108495000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "3108495000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-014",
+      "question": "What was AAPL's total liabilities in Q1 FY2026?",
+      "required_facts": [
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q1",
+          "value": "291107000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q1",
+          "value": "291107000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-015",
+      "question": "What was PFE's total liabilities in Q2 FY2025?",
+      "required_facts": [
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q2",
+          "value": "117083000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q2",
+          "value": "117083000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-016",
+      "question": "What was PFE's total liabilities in Q3 FY2025?",
+      "required_facts": [
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q3",
+          "value": "115635000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q3",
+          "value": "115635000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-017",
+      "question": "What was MCD's cash and cash equivalents in FY2025?",
+      "required_facts": [
+        {
+          "metric": "cash_and_equivalents",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "774000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "cash_and_equivalents",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "774000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-018",
+      "question": "What was COST's cash and cash equivalents in Q1 FY2026?",
+      "required_facts": [
+        {
+          "metric": "cash_and_equivalents",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q1",
+          "value": "16217000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "cash_and_equivalents",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q1",
+          "value": "16217000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-019",
+      "question": "What was JNJ's cash and cash equivalents in Q2 FY2025?",
+      "required_facts": [
+        {
+          "metric": "cash_and_equivalents",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q2",
+          "value": "18577000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "cash_and_equivalents",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q2",
+          "value": "18577000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-020",
+      "question": "What was JNJ's cash and cash equivalents in Q3 FY2025?",
+      "required_facts": [
+        {
+          "metric": "cash_and_equivalents",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q3",
+          "value": "18231000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "cash_and_equivalents",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q3",
+          "value": "18231000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-021",
+      "question": "What was AVGO's revenue in FY2025?",
+      "required_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "63887000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "63887000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-022",
+      "question": "What was CVX's revenue in Q1 FY2026?",
+      "required_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q1",
+          "value": "47556000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q1",
+          "value": "47556000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-023",
+      "question": "What was DIS's revenue in Q2 FY2026?",
+      "required_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q2",
+          "value": "25168000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q2",
+          "value": "25168000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-024",
+      "question": "What was MSFT's revenue in Q3 FY2026?",
+      "required_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q3",
+          "value": "82886000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q3",
+          "value": "82886000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-025",
+      "question": "What was MSFT's net income in FY2025?",
+      "required_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "101832000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "101832000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-026",
+      "question": "What was WMT's net income in Q1 FY2027?",
+      "required_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2027,
+          "fiscal_period": "Q1",
+          "value": "5330000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2027,
+          "fiscal_period": "Q1",
+          "value": "5330000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-027",
+      "question": "What was BRK-B's net income in Q2 FY2025?",
+      "required_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q2",
+          "value": "12370000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q2",
+          "value": "12370000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-028",
+      "question": "What was BRK-B's net income in Q3 FY2025?",
+      "required_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q3",
+          "value": "30796000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "net_income",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q3",
+          "value": "30796000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-029",
+      "question": "What was AMZN's total assets in FY2025?",
+      "required_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "818042000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "818042000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-030",
+      "question": "What was JPM's total assets in Q1 FY2026?",
+      "required_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q1",
+          "value": "4900475000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q1",
+          "value": "4900475000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-031",
+      "question": "What was MSFT's total assets in Q2 FY2026?",
+      "required_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q2",
+          "value": "665302000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2026,
+          "fiscal_period": "Q2",
+          "value": "665302000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-032",
+      "question": "What was CAT's total assets in Q3 FY2025?",
+      "required_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q3",
+          "value": "93722000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2025,
+          "fiscal_period": "Q3",
+          "value": "93722000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-033",
+      "question": "What was MSFT's total liabilities in FY2025?",
+      "required_facts": [
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "275524000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "275524000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "direct-034",
+      "question": "What was NVDA's total liabilities in Q1 FY2027?",
+      "required_facts": [
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2027,
+          "fiscal_period": "Q1",
+          "value": "64000000000",
+          "unit": "USD"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2027,
+          "fiscal_period": "Q1",
+          "value": "64000000000",
+          "unit": "USD"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "direct"
+    },
+    {
+      "case_id": "comparison-001",
+      "question": "How did MA's cash and cash equivalents change from FY2024 to FY2025? Return both the delta and percentage change.",
+      "required_facts": [
+        {
+          "metric": "cash_and_equivalents_yoy_delta",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "2124000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "cash_and_equivalents_yoy_percent_change",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "25.15991471215352",
+          "unit": "percent"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "cash_and_equivalents",
+          "fiscal_year": 2024,
+          "fiscal_period": "FY",
+          "value": "8442000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "cash_and_equivalents",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "10566000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "cash_and_equivalents_yoy_delta",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "2124000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "cash_and_equivalents_yoy_percent_change",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "25.15991471215352",
+          "unit": "percent"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "comparison"
+    },
+    {
+      "case_id": "comparison-002",
+      "question": "How did CVX's total assets change from FY2024 to FY2025? Return both the delta and percentage change.",
+      "required_facts": [
+        {
+          "metric": "total_assets_yoy_delta",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "67074000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_assets_yoy_percent_change",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "26.105130420568386",
+          "unit": "percent"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2024,
+          "fiscal_period": "FY",
+          "value": "256938000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "324012000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_assets_yoy_delta",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "67074000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_assets_yoy_percent_change",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "26.105130420568386",
+          "unit": "percent"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "comparison"
+    },
+    {
+      "case_id": "comparison-003",
+      "question": "How did META's total assets change from FY2023 to FY2024? Return both the delta and percentage change.",
+      "required_facts": [
+        {
+          "metric": "total_assets_yoy_delta",
+          "fiscal_year": 2024,
+          "fiscal_period": "FY",
+          "value": "46431000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_assets_yoy_percent_change",
+          "fiscal_year": 2024,
+          "fiscal_period": "FY",
+          "value": "20.220535399328465",
+          "unit": "percent"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2023,
+          "fiscal_period": "FY",
+          "value": "229623000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_assets",
+          "fiscal_year": 2024,
+          "fiscal_period": "FY",
+          "value": "276054000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_assets_yoy_delta",
+          "fiscal_year": 2024,
+          "fiscal_period": "FY",
+          "value": "46431000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_assets_yoy_percent_change",
+          "fiscal_year": 2024,
+          "fiscal_period": "FY",
+          "value": "20.220535399328465",
+          "unit": "percent"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "comparison"
+    },
+    {
+      "case_id": "comparison-004",
+      "question": "How did MCD's revenue change from FY2024 to FY2025? Return both the delta and percentage change.",
+      "required_facts": [
+        {
+          "metric": "revenue_yoy_delta",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "965000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "revenue_yoy_percent_change",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "3.7229938271604937",
+          "unit": "percent"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "revenue",
+          "fiscal_year": 2024,
+          "fiscal_period": "FY",
+          "value": "25920000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "revenue",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "26885000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "revenue_yoy_delta",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "965000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "revenue_yoy_percent_change",
+          "fiscal_year": 2025,
+          "fiscal_period": "FY",
+          "value": "3.7229938271604937",
+          "unit": "percent"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "comparison"
+    },
+    {
+      "case_id": "comparison-005",
+      "question": "How did GOOGL's total liabilities change from FY2023 to FY2024? Return both the delta and percentage change.",
+      "required_facts": [
+        {
+          "metric": "total_liabilities_yoy_delta",
+          "fiscal_year": 2024,
+          "fiscal_period": "FY",
+          "value": "6159000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_liabilities_yoy_percent_change",
+          "fiscal_year": 2024,
+          "fiscal_period": "FY",
+          "value": "5.175064908875501",
+          "unit": "percent"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2023,
+          "fiscal_period": "FY",
+          "value": "119013000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2024,
+          "fiscal_period": "FY",
+          "value": "125172000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_liabilities_yoy_delta",
+          "fiscal_year": 2024,
+          "fiscal_period": "FY",
+          "value": "6159000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_liabilities_yoy_percent_change",
+          "fiscal_year": 2024,
+          "fiscal_period": "FY",
+          "value": "5.175064908875501",
+          "unit": "percent"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "comparison"
+    },
+    {
+      "case_id": "comparison-006",
+      "question": "How did V's total liabilities change from FY2022 to FY2023? Return both the delta and percentage change.",
+      "required_facts": [
+        {
+          "metric": "total_liabilities_yoy_delta",
+          "fiscal_year": 2023,
+          "fiscal_period": "FY",
+          "value": "1846000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_liabilities_yoy_percent_change",
+          "fiscal_year": 2023,
+          "fiscal_period": "FY",
+          "value": "3.6979166666666665",
+          "unit": "percent"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2022,
+          "fiscal_period": "FY",
+          "value": "49920000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_liabilities",
+          "fiscal_year": 2023,
+          "fiscal_period": "FY",
+          "value": "51766000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_liabilities_yoy_delta",
+          "fiscal_year": 2023,
+          "fiscal_period": "FY",
+          "value": "1846000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "total_liabilities_yoy_percent_change",
+          "fiscal_year": 2023,
+          "fiscal_period": "FY",
+          "value": "3.6979166666666665",
+          "unit": "percent"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "comparison"
+    },
+    {
+      "case_id": "comparison-007",
+      "question": "How did KO's cash and cash equivalents change from FY2021 to FY2022? Return both the delta and percentage change.",
+      "required_facts": [
+        {
+          "metric": "cash_and_equivalents_yoy_delta",
+          "fiscal_year": 2022,
+          "fiscal_period": "FY",
+          "value": "-165000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "cash_and_equivalents_yoy_percent_change",
+          "fiscal_year": 2022,
+          "fiscal_period": "FY",
+          "value": "-1.7038413878562577",
+          "unit": "percent"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "cash_and_equivalents",
+          "fiscal_year": 2021,
+          "fiscal_period": "FY",
+          "value": "9684000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "cash_and_equivalents",
+          "fiscal_year": 2022,
+          "fiscal_period": "FY",
+          "value": "9519000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "cash_and_equivalents_yoy_delta",
+          "fiscal_year": 2022,
+          "fiscal_period": "FY",
+          "value": "-165000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "cash_and_equivalents_yoy_percent_change",
+          "fiscal_year": 2022,
+          "fiscal_period": "FY",
+          "value": "-1.7038413878562577",
+          "unit": "percent"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "comparison"
+    },
+    {
+      "case_id": "comparison-008",
+      "question": "How did JNJ's cash and cash equivalents change from FY2021 to FY2022? Return both the delta and percentage change.",
+      "required_facts": [
+        {
+          "metric": "cash_and_equivalents_yoy_delta",
+          "fiscal_year": 2022,
+          "fiscal_period": "FY",
+          "value": "-360000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "cash_and_equivalents_yoy_percent_change",
+          "fiscal_year": 2022,
+          "fiscal_period": "FY",
+          "value": "-2.4849865396562434",
+          "unit": "percent"
+        }
+      ],
+      "allowed_facts": [
+        {
+          "metric": "cash_and_equivalents",
+          "fiscal_year": 2021,
+          "fiscal_period": "FY",
+          "value": "14487000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "cash_and_equivalents",
+          "fiscal_year": 2022,
+          "fiscal_period": "FY",
+          "value": "14127000000",
+          "unit": "USD"
+        },
+        {
+          "metric": "cash_and_equivalents_yoy_delta",
+          "fiscal_year": 2022,
+          "fiscal_period": "FY",
+          "value": "-360000000.0",
+          "unit": "USD"
+        },
+        {
+          "metric": "cash_and_equivalents_yoy_percent_change",
+          "fiscal_year": 2022,
+          "fiscal_period": "FY",
+          "value": "-2.4849865396562434",
+          "unit": "percent"
+        }
+      ],
+      "expect_refusal": false,
+      "case_type": "comparison"
+    },
+    {
+      "case_id": "trap-excluded-tsla",
+      "question": "What was TSLA's net income in FY2024?",
+      "required_facts": [],
+      "allowed_facts": [],
+      "expect_refusal": true,
+      "case_type": "no_answer"
+    },
+    {
+      "case_id": "trap-excluded-xom",
+      "question": "What was XOM's revenue in FY2024?",
+      "required_facts": [],
+      "allowed_facts": [],
+      "expect_refusal": true,
+      "case_type": "no_answer"
+    },
+    {
+      "case_id": "trap-excluded-wfc",
+      "question": "What was WFC's total assets in FY2024?",
+      "required_facts": [],
+      "allowed_facts": [],
+      "expect_refusal": true,
+      "case_type": "no_answer"
+    },
+    {
+      "case_id": "trap-year-aapl",
+      "question": "What was AAPL's revenue in FY1850?",
+      "required_facts": [],
+      "allowed_facts": [],
+      "expect_refusal": true,
+      "case_type": "no_answer"
+    },
+    {
+      "case_id": "trap-year-msft",
+      "question": "What was MSFT's net income in FY2099?",
+      "required_facts": [],
+      "allowed_facts": [],
+      "expect_refusal": true,
+      "case_type": "no_answer"
+    },
+    {
+      "case_id": "trap-metric-aapl",
+      "question": "What was AAPL's gross margin in FY2024?",
+      "required_facts": [],
+      "allowed_facts": [],
+      "expect_refusal": true,
+      "case_type": "no_answer"
+    }
+  ]
+}

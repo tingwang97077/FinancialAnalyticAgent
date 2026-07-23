@@ -131,7 +131,12 @@ def test_text_search_uses_gin_expression_and_all_filters_in_sql() -> None:
     )
 
     sql, parameters = engine.connection.calls[0]
-    assert "plainto_tsquery('english', :query)" in sql
+    assert "tsvector_to_array(to_tsvector('english', :query))" in sql
+    assert "string_agg(quote_literal(term), ' | ' ORDER BY term)" in sql
+    assert "to_tsquery(" in sql
+    assert "plainto_tsquery" not in sql
+    assert "websearch_to_tsquery" not in sql
+    assert "sq.value IS NOT NULL" in sql
     assert "dc.text_tsv @@ sq.value" in sql
     assert "ts_rank_cd(dc.text_tsv, sq.value)" in sql
     assert "dc.ticker = :filter_ticker" in sql
