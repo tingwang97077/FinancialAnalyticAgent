@@ -1,5 +1,45 @@
 # Financial Fundamentals Agent
 
+## Project overview
+
+Financial Fundamentals Agent is an AI-powered research assistant designed to answer natural-language
+questions about the financial fundamentals and SEC disclosures of a curated universe of public
+companies. It turns questions such as “What was Apple's net income in FY2024?”, “Which supply-chain
+risks does the company disclose?”, or “How did earnings change, and how does management explain it?”
+into grounded answers backed by primary SEC EDGAR data.
+
+The project combines two complementary evidence paths:
+
+- **Structured financial analysis** uses normalized XBRL facts for revenue, net income, total assets,
+  total liabilities, and cash and cash equivalents. Numeric requests are translated into tightly
+  validated, read-only PostgreSQL queries. PostgreSQL selects the values and performs calculations such
+  as deltas, ratios, and percentage changes; the language model never calculates a financial number.
+- **Narrative filing analysis** retrieves relevant excerpts from SEC filings, including MD&A, Risk
+  Factors, and Notes. Vector search and a local cross-encoder reranker select the most relevant passages,
+  and the final answer links its narrative claims back to the original SEC filing.
+
+Questions are classified as numeric, narrative, hybrid, or out of scope. Hybrid questions use both paths
+to combine exact database facts with management commentary or risk disclosures. Every returned number
+must match a typed SQL result, every citation must resolve to a retrieved filing chunk, and insufficient
+evidence produces an explicit unavailable or ungrounded response instead of a fabricated answer.
+
+The repository implements the full lifecycle of this system: SEC ingestion, XBRL normalization, filing
+cleaning and chunking, embeddings, retrieval and reranking, guarded agent orchestration, a FastAPI
+backend, a Streamlit chat interface, user feedback, Langfuse tracing, Grafana dashboards, reproducible
+retrieval and generation evaluations, and Airflow scheduling. PostgreSQL 17 with pgvector is the central
+evidence and telemetry store, while Docker Compose runs the complete local platform.
+
+The current configured universe contains 27 US public-company tickers across technology, financial
+services, healthcare, consumer, industrial, energy, payments, media, and retail sectors. The universe is
+deliberately curated: a company is retained only when the pipeline has both usable canonical financial
+facts and safely segmented narrative evidence. This favors transparent, auditable answers over broad but
+unreliable coverage.
+
+The result is not a general-purpose chatbot or an investment-advice engine. It is a focused financial
+fundamentals assistant whose central design goal is **evidence before fluency**: exact numbers come from
+PostgreSQL, narrative context comes from SEC filings, and the LLM is limited to understanding, routing,
+and grounded explanation.
+
 ## Architecture
 
 ### Design principles
