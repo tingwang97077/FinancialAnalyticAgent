@@ -1,4 +1,4 @@
-# Financial Fundamentals Agent
+# Financial Fundamentals Analytic Agent
 
 ## Project overview
 
