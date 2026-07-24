@@ -1,9 +1,16 @@
+\getenv ffa_readonly_password FFA_READONLY_PASSWORD
+
+\if :{?ffa_readonly_password}
+\else
+    \echo 'FFA_READONLY_PASSWORD must be configured.'
+    \quit
+\endif
+
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'ffa_ro') THEN
         CREATE ROLE ffa_ro WITH
             LOGIN
-            PASSWORD 'pass'
             NOSUPERUSER
             NOCREATEDB
             NOCREATEROLE
@@ -12,6 +19,8 @@ BEGIN
     END IF;
 END
 $$;
+
+SELECT format('ALTER ROLE ffa_ro PASSWORD %L', :'ffa_readonly_password') \gexec
 
 ALTER ROLE ffa_ro WITH
     LOGIN

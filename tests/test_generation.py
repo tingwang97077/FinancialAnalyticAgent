@@ -239,6 +239,7 @@ def test_openai_generation_uses_answer_schema_evidence_and_trace_metadata() -> N
     assert calls[0]["metadata"] == {"trace_id": "trace-structured"}
     payload = json.loads(calls[0]["input"])
     assert payload["trace_id"] == "trace-structured"
+    assert payload["data_unavailable"] is False
     assert payload["facts"][0]["value"] == 93_736_000_000
     assert payload["chunks"][0]["source_url"] == chunk["source_url"]
     assert "Never calculate" in calls[0]["instructions"]

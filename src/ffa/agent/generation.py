@@ -167,6 +167,7 @@ def _generation_input(question: str, context: AgentContext) -> str:
         "question": question,
         "trace_id": context.trace_id,
         "route": context.route,
+        "data_unavailable": context.data_unavailable,
         "facts": [fact.model_dump(mode="json") for fact in context.facts],
         "chunks": [_chunk_evidence(chunk) for chunk in context.chunks],
     }

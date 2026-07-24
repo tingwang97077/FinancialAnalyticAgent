@@ -13,6 +13,12 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from ffa.agent.errors import (
+    GeneratedSQLExecutionError,
+    GeneratedSQLRejectedError,
+    GeneratedSQLResultError,
+    IncompleteComparisonError,
+)
 from ffa.agent.schemas import Answer
 from ffa.api.deps import (
     AgentRunner,
@@ -113,6 +119,18 @@ async def ask(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="The answer service is temporarily unavailable.",
+        ) from exc
+    except (
+        GeneratedSQLRejectedError,
+        GeneratedSQLExecutionError,
+        GeneratedSQLResultError,
+        IncompleteComparisonError,
+    ) as exc:
+        db.rollback()
+        logger.warning("Generated financial query failed", extra={"trace_id": trace_id})
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The financial query could not be completed safely.",
         ) from exc
     except SQLAlchemyError as exc:
         db.rollback()

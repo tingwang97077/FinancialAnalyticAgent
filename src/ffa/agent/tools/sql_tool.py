@@ -6,10 +6,18 @@ import json
 from functools import lru_cache
 
 from openai import OpenAI
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import Engine, text
+from sqlalchemy.exc import ProgrammingError
 
-from ffa.agent.guardrails import ValidatedSQL, validate_sql
+from ffa.agent.errors import (
+    FinancialDataUnavailableError,
+    GeneratedSQLExecutionError,
+    GeneratedSQLRejectedError,
+    GeneratedSQLResultError,
+    IncompleteComparisonError,
+)
+from ffa.agent.guardrails import SQLValidationError, ValidatedSQL, validate_sql
 from ffa.agent.schemas import Intent, NumberFact, Understanding
 from ffa.common.db import create_readonly_engine
 from ffa.config import Settings, get_settings
@@ -60,6 +68,8 @@ _SQL_SYSTEM_INSTRUCTIONS = f"""You generate one PostgreSQL SELECT for a financia
 
 Rules:
 - Query only the documented schema and always qualify columns in joins.
+- The metric column contains only revenue, net_income, total_assets, total_liabilities,
+  and cash_and_equivalents. Use these exact values and no synonyms.
 - Return exactly five columns named metric, fiscal_year, fiscal_period, value, and unit.
 - Return numeric facts only; never produce explanatory text.
 - Perform every calculation in SQL. Growth, ratios, deltas, and comparisons must be SQL arithmetic,
@@ -166,10 +176,37 @@ class SqlTool:
         """Return typed facts after guarded SQL execution."""
         if understanding.intent not in {Intent.NUMERIC, Intent.HYBRID}:
             raise ValueError("The SQL tool only accepts numeric or hybrid understanding.")
+        if not understanding.entities.metrics:
+            raise FinancialDataUnavailableError(
+                "No supported canonical metric was identified for the request."
+            )
         generated = self._provider.generate_sql(understanding, model=self._model)
-        validated = validate_sql(generated.sql)
-        facts = self._execute(validated)
-        _validate_required_comparison_facts(understanding, facts)
+        try:
+            validated = validate_sql(generated.sql)
+        except SQLValidationError as exc:
+            raise GeneratedSQLRejectedError(
+                "The generated financial query did not pass validation."
+            ) from exc
+        try:
+            facts = self._execute(validated)
+        except ProgrammingError as exc:
+            raise GeneratedSQLExecutionError(
+                "PostgreSQL rejected the generated financial query."
+            ) from exc
+        except ValidationError as exc:
+            raise GeneratedSQLResultError(
+                "The generated financial query returned an invalid result."
+            ) from exc
+        if not facts:
+            raise FinancialDataUnavailableError(
+                "No financial facts matched the requested metric and period."
+            )
+        try:
+            _validate_required_comparison_facts(understanding, facts)
+        except RuntimeError as exc:
+            raise IncompleteComparisonError(
+                "The generated comparison omitted required SQL-derived facts."
+            ) from exc
         return facts
 
     def _execute(self, query: ValidatedSQL) -> list[NumberFact]:

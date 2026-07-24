@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from openai import OpenAI
 
+from ffa.agent.errors import FinancialDataUnavailableError
 from ffa.agent.generation import GenerationCallable, generate
 from ffa.agent.guardrails import GuardResult, check_input
 from ffa.agent.schemas import Answer, Intent, NumberFact, Understanding
@@ -25,6 +26,7 @@ from ffa.retrieval.base import Chunk
 _OUT_OF_SCOPE_REFUSAL = (
     "I can only answer questions about public-company financial fundamentals and SEC filings."
 )
+_DATA_UNAVAILABLE_TEXT = "The requested financial data is unavailable in the current corpus."
 _ROUTE_BY_INTENT = MappingProxyType(
     {
         Intent.NUMERIC: "sql_tool",
@@ -91,6 +93,7 @@ class AgentContext:
     chunks: list[Chunk] = field(default_factory=list)
     route: str = "out_of_scope"
     trace_id: str = ""
+    data_unavailable: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,9 +205,13 @@ def route_understanding(
         raise RoutingError("The tool planner did not follow the classified intent.")
 
     facts: list[NumberFact] = []
+    data_unavailable = False
     if "sql_tool" in expected_tools:
         with observe_step("sql_tool"):
-            facts = sql_runner(understanding)
+            try:
+                facts = sql_runner(understanding)
+            except FinancialDataUnavailableError:
+                data_unavailable = True
     chunks: list[Chunk] = []
     if "retrieval_tool" in expected_tools:
         with observe_step("retrieval_tool"):
@@ -214,6 +221,7 @@ def route_understanding(
         chunks=chunks,
         route=route,
         trace_id=trace_id,
+        data_unavailable=data_unavailable,
     )
 
 
@@ -254,8 +262,19 @@ def run_agent(
             answer=Answer(text=_OUT_OF_SCOPE_REFUSAL, grounded=True),
             context=context,
         )
+    if understanding.intent is Intent.NUMERIC and context.data_unavailable:
+        return AgentRun(
+            answer=Answer(text=_DATA_UNAVAILABLE_TEXT, grounded=False),
+            context=context,
+        )
     with observe_step("generation"):
         answer = answer_generator(question, context)
+    if understanding.intent is Intent.HYBRID and context.data_unavailable:
+        answer = Answer(
+            text=f"{_DATA_UNAVAILABLE_TEXT} {answer.text}",
+            citations=answer.citations,
+            grounded=False,
+        )
     return AgentRun(answer=answer, context=context)
 
 

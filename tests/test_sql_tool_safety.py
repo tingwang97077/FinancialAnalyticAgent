@@ -5,11 +5,18 @@ from __future__ import annotations
 import json
 from decimal import Decimal
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, NoReturn
 
 import pytest
+from sqlalchemy.exc import ProgrammingError
 
 import ffa.agent.tools.sql_tool as sql_tool_module
+from ffa.agent.errors import (
+    FinancialDataUnavailableError,
+    GeneratedSQLExecutionError,
+    GeneratedSQLRejectedError,
+    IncompleteComparisonError,
+)
 from ffa.agent.guardrails import SQLValidationError, validate_sql
 from ffa.agent.schemas import Entities, Intent, NumberFact, Understanding
 from ffa.agent.tools.sql_tool import GeneratedSQL, SQLGenerationProvider, SqlTool
@@ -276,7 +283,7 @@ def test_sql_tool_rejects_comparison_without_sql_derived_facts() -> None:
         model="configured-primary-model",
     )
 
-    with pytest.raises(RuntimeError, match="required comparison fact"):
+    with pytest.raises(IncompleteComparisonError, match="omitted required"):
         tool.run(_hybrid_understanding())
 
 
@@ -288,10 +295,39 @@ def test_sql_tool_rejects_write_before_opening_readonly_connection() -> None:
         model="configured-primary-model",
     )
 
-    with pytest.raises(SQLValidationError):
+    with pytest.raises(GeneratedSQLRejectedError, match="did not pass validation"):
         tool.run(_numeric_understanding())
 
     assert engine.connection.calls == []
+
+
+def test_sql_tool_reports_empty_result_as_data_unavailable() -> None:
+    tool = SqlTool(
+        provider=FakeSQLProvider(_VALID_SELECT),  # type: ignore[arg-type]
+        readonly_engine=FakeReadOnlyEngine([]),  # type: ignore[arg-type]
+        model="configured-primary-model",
+    )
+
+    with pytest.raises(FinancialDataUnavailableError, match="No financial facts matched"):
+        tool.run(_numeric_understanding())
+
+
+def test_sql_tool_classifies_postgres_rejection_as_generated_sql_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = SqlTool(
+        provider=FakeSQLProvider(_VALID_SELECT),  # type: ignore[arg-type]
+        readonly_engine=FakeReadOnlyEngine([]),  # type: ignore[arg-type]
+        model="configured-primary-model",
+    )
+
+    def reject_query(_: object) -> NoReturn:
+        raise ProgrammingError("SELECT invalid", {}, RuntimeError("syntax error"))
+
+    monkeypatch.setattr(tool, "_execute", reject_query)
+
+    with pytest.raises(GeneratedSQLExecutionError, match="PostgreSQL rejected"):
+        tool.run(_numeric_understanding())
 
 
 def test_sql_tool_factory_uses_only_database_url_readonly(

@@ -2,17 +2,77 @@
 
 ## Run
 
+### Full stack with Docker Compose
+
+Prerequisites:
+
+- Docker Compose v2 with at least 4 GB of memory available to Airflow.
+- Copy `.env.example` to `.env` and configure the required secrets:
+  `OPENAI_API_KEY`, `SEC_USER_AGENT`, `POSTGRES_PASSWORD`,
+  `GRAFANA_DATABASE_PASSWORD`, `GF_SECURITY_ADMIN_PASSWORD`,
+  `AIRFLOW_ADMIN_PASSWORD`, `AIRFLOW_FERNET_KEY`, and
+  `AIRFLOW_API_JWT_SECRET`.
+- Keep password values URL-safe because they are interpolated into PostgreSQL
+  connection URLs by Docker Compose.
+- Generate an Airflow Fernet key with:
+
+  ```bash
+  uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+  ```
+
+- Generate the Airflow API JWT secret with:
+
+  ```bash
+  openssl rand -hex 32
+  ```
+
+Build and start PostgreSQL, the API, UI, Airflow 3, and Grafana with one command:
+
+```bash
+docker compose up --build
+```
+
+The one-shot `airflow-init` service migrates the Airflow metadata tables and creates
+the configured administrator before the long-running Airflow components start.
+Docker Compose overrides the local connection settings with container-network
+addresses:
+
+- PostgreSQL: `postgres:5432`
+- UI to API: `http://api:8000`
+- SEC cache: `/data/sec_cache`
+
+The complete stack is available at:
+
+| Component | URL |
+|---|---|
+| FastAPI | <http://localhost:8000> |
+| FastAPI documentation | <http://localhost:8000/docs> |
+| Streamlit | <http://localhost:8501> |
+| Grafana | <http://localhost:3000> |
+| Airflow 3 | <http://localhost:8080> |
+
+Use `GF_SECURITY_ADMIN_USER` / `GF_SECURITY_ADMIN_PASSWORD` for Grafana and
+`AIRFLOW_ADMIN_USERNAME` / `AIRFLOW_ADMIN_PASSWORD` for Airflow. Stop the stack
+without deleting its named volumes with:
+
+```bash
+docker compose down
+```
+
+### Local development
+
 Prerequisites:
 
 - Create `.env` from `.env.example` and configure `OPENAI_API_KEY`.
 - Configure `GF_SECURITY_ADMIN_PASSWORD` and set `GRAFANA_DATABASE_PASSWORD` to the
   password of the read-only `ffa_ro` database role.
 - When running the API and UI directly on the host, set the database hosts in `.env` to
-  `localhost`, for example:
+  `localhost`. Keep the URL passwords aligned with `POSTGRES_PASSWORD` and
+  `GRAFANA_DATABASE_PASSWORD`, for example:
 
   ```dotenv
-  DATABASE_URL=postgresql+psycopg://ffa_app:pass@localhost:5432/ffa
-  DATABASE_URL_READONLY=postgresql+psycopg://ffa_ro:pass@localhost:5432/ffa
+  DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}
+  DATABASE_URL_READONLY=postgresql+psycopg://ffa_ro:${GRAFANA_DATABASE_PASSWORD}@localhost:5432/${POSTGRES_DB}
   ```
 
 - Start PostgreSQL before starting the API or UI:

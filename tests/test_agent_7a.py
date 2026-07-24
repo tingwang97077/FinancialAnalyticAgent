@@ -13,7 +13,12 @@ from ffa.agent.guardrails import (
     OpenAIModerationProvider,
     check_input,
 )
-from ffa.agent.schemas import Entities, Intent, Understanding
+from ffa.agent.schemas import (
+    METRIC_SYNONYMS_VERSION,
+    Entities,
+    Intent,
+    Understanding,
+)
 from ffa.agent.understanding import (
     OpenAIUnderstandingProvider,
     UnderstandingProvider,
@@ -245,6 +250,71 @@ def test_entities_normalize_and_restrict_corpus_sections() -> None:
     ]
     with pytest.raises(ValueError, match="MD&A, Risk Factors, or Notes"):
         Entities(sections=["Business"])
+
+
+def test_entities_accept_only_versioned_canonical_metrics() -> None:
+    entities = Entities(
+        metrics=[
+            "revenue",
+            "cash_and_cash_equivalents",
+            "NET SALES",
+            "gross_margin",
+            "cash_and_equivalents",
+        ]
+    )
+
+    assert METRIC_SYNONYMS_VERSION == 1
+    assert entities.metrics == ["revenue", "cash_and_equivalents"]
+    assert Entities(metrics=["gross_margin", "operating_cash_flow"]).metrics == []
+
+
+@pytest.mark.parametrize(
+    ("question", "draft_periods", "expected_years", "expected_periods"),
+    [
+        (
+            "Compare AAPL revenue from FY2024 to FY2025.",
+            ["Q3"],
+            [2024, 2025],
+            ["FY"],
+        ),
+        (
+            "What was COST revenue in Q1 FY2026?",
+            ["FY"],
+            [2026],
+            ["Q1"],
+        ),
+    ],
+)
+def test_understand_normalizes_explicit_fiscal_references(
+    question: str,
+    draft_periods: list[str],
+    expected_years: list[int],
+    expected_periods: list[str],
+) -> None:
+    provider = RecordingUnderstandingProvider(
+        Understanding(
+            intent=Intent.NUMERIC,
+            entities=Entities(
+                tickers=["AAPL"],
+                metrics=["revenue"],
+                fiscal_years=[1999],
+                fiscal_periods=draft_periods,
+            ),
+            rewritten_query="Normalized fiscal question",
+        )
+    )
+
+    result = understand(
+        question,
+        provider=provider,
+        entity_resolver=RecordingResolver(
+            [{"ticker": "AAPL", "cik": 320193, "name": "Apple Inc."}]
+        ),
+        settings=_settings(classifier_model="classifier-test-model"),
+    )
+
+    assert result.entities.fiscal_years == expected_years
+    assert result.entities.fiscal_periods == expected_periods
 
 
 def test_understand_preserves_out_of_scope_and_skips_entity_resolution() -> None:

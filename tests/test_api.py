@@ -13,6 +13,11 @@ from sqlalchemy import Engine, create_engine, event, text
 from sqlalchemy.exc import OperationalError
 
 import ffa.api.main as api_main_module
+from ffa.agent.errors import (
+    GeneratedSQLExecutionError,
+    GeneratedSQLRejectedError,
+    IncompleteComparisonError,
+)
 from ffa.agent.router import AgentContext, AgentRun
 from ffa.agent.schemas import Answer, Citation, NumberFact
 from ffa.api.deps import AgentRunner
@@ -39,6 +44,15 @@ class UnavailableAgentRunner:
     def __call__(self, question: str, *, trace_id: str | None = None) -> AgentRun:
         del question, trace_id
         raise OpenAIError("upstream unavailable")
+
+
+class FailingAgentRunner:
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+
+    def __call__(self, question: str, *, trace_id: str | None = None) -> AgentRun:
+        del question, trace_id
+        raise self._error
 
 
 @pytest.mark.asyncio
@@ -190,6 +204,31 @@ async def test_openai_failure_returns_sanitized_503(tmp_path: Path) -> None:
     assert response.status_code == 503
     assert response.json() == {"detail": "The answer service is temporarily unavailable."}
     assert "upstream unavailable" not in response.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [
+        GeneratedSQLRejectedError("unsafe generated SQL detail"),
+        GeneratedSQLExecutionError("invalid generated SQL detail"),
+        IncompleteComparisonError("missing comparison detail"),
+    ],
+)
+async def test_generated_query_failures_return_honest_sanitized_502(
+    tmp_path: Path,
+    error: Exception,
+) -> None:
+    app, _ = _test_app(tmp_path, FailingAgentRunner(error))
+
+    async with _client(app) as client:
+        response = await client.post("/ask", json={"question": "A numeric question"})
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": "The financial query could not be completed safely."}
+    assert "configured" not in response.text
+    assert "database" not in response.text
+    assert str(error) not in response.text
 
 
 @pytest.mark.asyncio

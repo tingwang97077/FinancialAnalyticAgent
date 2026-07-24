@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable, Sequence
 from typing import Protocol
 
 from openai import OpenAI
 
-from ffa.agent.schemas import Entities, Intent, Understanding
+from ffa.agent.schemas import (
+    Entities,
+    Intent,
+    Understanding,
+    normalize_metric_names,
+)
 from ffa.common.entities import (
     Company,
     EntityResolutionError,
@@ -20,6 +26,10 @@ from ffa.monitoring.tracing import record_openai_response
 
 logger = logging.getLogger(__name__)
 
+_EXPLICIT_FISCAL_REFERENCE = re.compile(
+    r"\b(?:(Q[1-4])(?:\s+of)?\s+)?FY\s*([12]\d{3})\b",
+    flags=re.IGNORECASE,
+)
 _SYSTEM_INSTRUCTIONS = """You classify questions for a financial fundamentals agent.
 Return only the structured Understanding object required by the response schema.
 
@@ -37,8 +47,14 @@ Use only these exact corpus names:
 - Risk Factors for an explicit question about disclosed risks.
 - Notes for an explicit question about financial statement notes.
 Otherwise return an empty sections list. Never force a section for a purely numeric question.
-Use snake_case metric names when a financial metric is explicit. Rewrite the question into a
-self-contained retrieval/query formulation. Never calculate, estimate, or supply a numeric answer.
+Use only these canonical metric names when a financial metric is explicit:
+- revenue
+- net_income
+- total_assets
+- total_liabilities
+- cash_and_equivalents
+Do not invent a metric outside this list. Rewrite the question into a self-contained retrieval/query
+formulation. Never calculate, estimate, or supply a numeric answer.
 For out-of-scope questions, return empty entity lists and preserve the request as rewritten_query.
 """
 
@@ -110,6 +126,7 @@ def understand(
     model = _select_classifier_model(resolved_settings)
     resolved_provider = provider or OpenAIUnderstandingProvider.from_settings(resolved_settings)
     draft = resolved_provider.create_understanding(normalized_question, model=model)
+    draft = _normalize_understanding(normalized_question, draft)
 
     if draft.intent is Intent.OUT_OF_SCOPE:
         return draft.model_copy(update={"entities": Entities()})
@@ -148,6 +165,30 @@ def _select_classifier_model(settings: Settings) -> str:
     if not selected_model:
         raise ValueError("OPENAI_CLASSIFIER_MODEL or OPENAI_MODEL must be configured.")
     return selected_model
+
+
+def _normalize_understanding(question: str, draft: Understanding) -> Understanding:
+    """Apply canonical metrics and explicit fiscal references deterministically."""
+    entity_updates: dict[str, object] = {
+        "metrics": normalize_metric_names(draft.entities.metrics),
+    }
+    references = _explicit_fiscal_references(question)
+    if references:
+        entity_updates["fiscal_years"] = [year for _, year in references]
+        entity_updates["fiscal_periods"] = [period for period, _ in references]
+    entity_payload = draft.entities.model_dump(mode="python")
+    entity_payload.update(entity_updates)
+    entities = Entities.model_validate(entity_payload)
+    return draft.model_copy(update={"entities": entities})
+
+
+def _explicit_fiscal_references(question: str) -> list[tuple[str, int]]:
+    """Extract explicit FY and quarter-of-FY markers in textual order."""
+    references = [
+        ((match.group(1) or "FY").upper(), int(match.group(2)))
+        for match in _EXPLICIT_FISCAL_REFERENCE.finditer(question)
+    ]
+    return list(dict.fromkeys(references))
 
 
 def _normalize_tickers(tickers: Sequence[str]) -> list[str]:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -14,6 +15,36 @@ _CANONICAL_SECTIONS = {
     "risk factors": "Risk Factors",
     "notes": "Notes",
 }
+CANONICAL_METRICS = frozenset(
+    {
+        "revenue",
+        "net_income",
+        "total_assets",
+        "total_liabilities",
+        "cash_and_equivalents",
+    }
+)
+METRIC_SYNONYMS_VERSION = 1
+METRIC_SYNONYMS = MappingProxyType(
+    {
+        "revenue": "revenue",
+        "revenues": "revenue",
+        "total_revenue": "revenue",
+        "net_revenue": "revenue",
+        "net_sales": "revenue",
+        "net_income": "net_income",
+        "net_income_loss": "net_income",
+        "net_earnings": "net_income",
+        "total_assets": "total_assets",
+        "assets": "total_assets",
+        "total_liabilities": "total_liabilities",
+        "liabilities": "total_liabilities",
+        "cash_and_equivalents": "cash_and_equivalents",
+        "cash_and_cash_equivalents": "cash_and_equivalents",
+        "cash_and_cash_equivalent": "cash_and_equivalents",
+        "cash_equivalents": "cash_and_equivalents",
+    }
+)
 
 
 class _AgentModel(BaseModel):
@@ -65,11 +96,17 @@ class Entities(_AgentModel):
             raise ValueError("Sections must be MD&A, Risk Factors, or Notes.") from exc
         return _deduplicate(normalized)
 
-    @field_validator("tickers", "metrics")
+    @field_validator("tickers")
     @classmethod
-    def deduplicate_strings(cls, values: list[str]) -> list[str]:
+    def deduplicate_tickers(cls, values: list[str]) -> list[str]:
         """Remove empty and duplicate extracted values while preserving order."""
         return _deduplicate(value.strip() for value in values if value.strip())
+
+    @field_validator("metrics")
+    @classmethod
+    def normalize_metrics(cls, values: list[str]) -> list[str]:
+        """Map known synonyms and discard metrics outside the canonical schema."""
+        return normalize_metric_names(values)
 
     @field_validator("ciks", "fiscal_years")
     @classmethod
@@ -125,3 +162,13 @@ class Answer(_AgentModel):
 def _deduplicate[T](values: Iterable[T]) -> list[T]:
     """Return unique hashable values in their original order."""
     return list(dict.fromkeys(values))
+
+
+def normalize_metric_names(values: Iterable[str]) -> list[str]:
+    """Return only versioned canonical metric names in input order."""
+    normalized: list[str] = []
+    for value in values:
+        key = "_".join(value.strip().casefold().replace("-", " ").split())
+        if canonical := METRIC_SYNONYMS.get(key):
+            normalized.append(canonical)
+    return _deduplicate(normalized)

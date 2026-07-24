@@ -7,6 +7,7 @@ from typing import Any, NoReturn
 
 import pytest
 
+from ffa.agent.errors import FinancialDataUnavailableError
 from ffa.agent.generation import AnswerGenerator
 from ffa.agent.guardrails import GuardResult
 from ffa.agent.router import (
@@ -155,6 +156,65 @@ def test_hybrid_run_merges_sql_delta_and_cited_narrative_context() -> None:
     assert result.answer.grounded is True
     assert provider.calls[0][1].facts == [delta]
     assert planner.calls == [(Intent.HYBRID, "trace-hybrid")]
+
+
+def test_numeric_no_data_returns_honest_answer_without_generation() -> None:
+    understanding = _understanding(Intent.NUMERIC)
+
+    def no_data(_: Understanding) -> NoReturn:
+        raise FinancialDataUnavailableError("No matching fact.")
+
+    result = run_agent(
+        "What was unavailable revenue?",
+        trace_id="trace-no-data",
+        guardrail_checker=_allow,
+        understanding_fn=lambda _: understanding,
+        planner=FakePlanner("sql_tool"),
+        sql_runner=no_data,
+        retrieval_runner=_unexpected_retrieval,
+        answer_generator=_unexpected_generation,
+    )
+
+    assert result.context.data_unavailable is True
+    assert (
+        result.answer.text == "The requested financial data is unavailable in the current corpus."
+    )
+    assert result.answer.numbers == []
+    assert result.answer.grounded is False
+
+
+def test_hybrid_no_numeric_data_preserves_cited_narrative_with_warning() -> None:
+    understanding = _understanding(Intent.HYBRID)
+    chunk = _chunk()
+    generator = AnswerGenerator(
+        provider=FakeGenerationProvider(
+            Answer(
+                text="Apple identifies supply-chain disruption as a risk.",
+                citations=[Citation(source_url=chunk["source_url"])],
+            )
+        ),
+        model="configured-model",
+    )
+
+    def no_data(_: Understanding) -> NoReturn:
+        raise FinancialDataUnavailableError("No matching fact.")
+
+    result = run_agent(
+        "How did the unavailable metric change, and what risk explains it?",
+        trace_id="trace-hybrid-no-data",
+        guardrail_checker=_allow,
+        understanding_fn=lambda _: understanding,
+        planner=FakePlanner("sql_tool", "retrieval_tool"),
+        sql_runner=no_data,
+        retrieval_runner=lambda _: [chunk],
+        answer_generator=generator.generate,
+    )
+
+    assert result.context.data_unavailable is True
+    assert result.answer.text.startswith("The requested financial data is unavailable")
+    assert result.answer.numbers == []
+    assert result.answer.citations[0].source_url == chunk["source_url"]
+    assert result.answer.grounded is False
 
 
 def test_out_of_scope_refuses_without_planner_tools_or_generation() -> None:
