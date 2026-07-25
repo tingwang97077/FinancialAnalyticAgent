@@ -30,14 +30,14 @@ _SCALES = (
 def main() -> None:
     """Render the chat client and the monitoring dashboard link."""
     st.set_page_config(
-        page_title="Financial Fundamentals Agent",
+        page_title="Financial Fundamentals Analytic Agent",
         page_icon="📊",
         layout="wide",
     )
     _initialize_session_state()
     api_base_url = _api_base_url()
 
-    st.title("Financial Fundamentals Agent")
+    st.title("Financial Fundamentals Analytic Agent")
     st.caption(f"API: {api_base_url}")
     chat_tab, dashboard_tab = st.tabs(["Chat", "Dashboard"])
 
