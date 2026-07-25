@@ -434,6 +434,13 @@ The project images are published on Docker Hub:
 | [louvuol/**ffa-app**](https://hub.docker.com/repository/docker/louvuol/ffa-app) | Shared application image for the FastAPI backend and Streamlit UI |
 | [louvuol/**ffa-airflow**](https://hub.docker.com/repository/docker/louvuol/ffa-airflow) | Airflow 3 image containing the `ffa` package used by the ingestion DAGs |
 
+Pull the published images with:
+
+```bash
+docker pull louvuol/ffa-app:1.0
+docker pull louvuol/ffa-airflow:3.3.0
+```
+
 Build and start PostgreSQL, the API, UI, Airflow 3, and Grafana with one command:
 
 ```bash
