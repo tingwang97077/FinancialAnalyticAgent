@@ -425,6 +425,15 @@ Prerequisites:
   openssl rand -hex 32
   ```
 
+#### Published Docker images
+
+The project images are published on Docker Hub:
+
+| Image | Purpose |
+|---|---|
+| [louvuol/**ffa-app**](https://hub.docker.com/repository/docker/louvuol/ffa-app) | Shared application image for the FastAPI backend and Streamlit UI |
+| [louvuol/**ffa-airflow**](https://hub.docker.com/repository/docker/louvuol/ffa-airflow) | Airflow 3 image containing the `ffa` package used by the ingestion DAGs |
+
 Build and start PostgreSQL, the API, UI, Airflow 3, and Grafana with one command:
 
 ```bash
