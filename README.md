@@ -1,5 +1,7 @@
 # Financial Fundamentals Analytic Agent
 
+<p align="center">
+
 ![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python)
 ![OPENAI](https://img.shields.io/badge/Provider-OpenAI-yellow)
 ![OPENAI](https://img.shields.io/badge/LLM-GPT-orange)
@@ -11,6 +13,8 @@
 ![Orchestration](https://img.shields.io/badge/Orchestration-Airflow-%23017CEE?logo=apacheairflow&logoColor=white)
 ![Runtime](https://img.shields.io/badge/Runtime-Docker%20Compose-%232496ED?logo=docker&logoColor=white)
 ![Data Ingestion](https://img.shields.io/badge/Data%20Ingestion-Python-%233776AB?logo=python&logoColor=white)
+
+</p>
 
 ## Project overview
 
