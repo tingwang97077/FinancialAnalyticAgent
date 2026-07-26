@@ -1,5 +1,10 @@
 # Financial Fundamentals Analytic Agent
 
+![IaC](https://img.shields.io/badge/IaC-Terraform-%23844FBA?logo=terraform&logoColor=white)
+![Orchestration](https://img.shields.io/badge/Orchestration-Airflow-%23017CEE?logo=apacheairflow&logoColor=white)
+![Runtime](https://img.shields.io/badge/Runtime-Docker%20Compose-%232496ED?logo=docker&logoColor=white)
+![Data Ingestion](https://img.shields.io/badge/Data%20Ingestion-Python-%233776AB?logo=python&logoColor=white)
+
 ## Project overview
 
 Financial Fundamentals Agent is an AI-powered research assistant for asking natural-language questions
