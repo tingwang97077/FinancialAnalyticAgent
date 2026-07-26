@@ -125,7 +125,7 @@ reranking. The complete benchmark is in [EVALUATION.md](EVALUATION.md).
 
 ## Agent and question routing
 
-`Understanding` contains an `Intent`, normalized `Entities`, and a self-contained `rewritten_query`.
+`Understanding` contains an `Intent`, normalized `Entities`, and a `rewritten_query`. For in-scope questions, the user's question is rewritten into a self-contained retrieval query formulation, and this rewritten form — rather than the verbatim input — is embedded and sent to the retrieval pipeline. Out-of-scope questions are preserved verbatim, and the raw question is always kept in `query_logs` for monitoring.
 `Entities` carries tickers, resolved SEC CIKs, canonical metrics, fiscal years, fiscal periods, and
 optional canonical sections. Unknown ticker resolution becomes `out_of_scope` instead of propagating
 an unsafe identifier.
