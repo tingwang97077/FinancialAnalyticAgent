@@ -28,6 +28,18 @@ orchestration, FastAPI, Streamlit, monitoring, evaluation, and Airflow schedulin
 general-purpose chatbot nor an investment-advice engine: its governing principle is **evidence before
 fluency**.
 
+## Demo
+
+### Streamlit UI
+![alt text](images/streamlit_ui.png)
+
+### Monitoring Grafana
+![alt text](images/grafana.png)
+
+### Observability Langfuse
+![alt text](images/langfuse.png)
+
+
 ## Data universe
 
 The corpus covers 27 curated US public companies across technology, banking, payments, healthcare,
