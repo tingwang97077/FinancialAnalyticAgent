@@ -1,4 +1,4 @@
-.PHONY: sync up down api ui test lint format eval
+.PHONY: sync up down api ui ingest test lint format eval
 
 sync:
 	uv sync --frozen
@@ -14,6 +14,9 @@ api:
 
 ui:
 	uv run streamlit run src/ffa/ui/app.py
+
+ingest:
+	uv run python -m ffa.ingestion.run
 
 test:
 	uv run pytest

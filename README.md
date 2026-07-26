@@ -2,73 +2,41 @@
 
 ## Project overview
 
-Financial Fundamentals Agent is an AI-powered research assistant designed to answer natural-language
-questions about the financial fundamentals and SEC disclosures of a curated universe of public
-companies. It turns questions such as “What was Apple's net income in FY2024?”, “Which supply-chain
-risks does the company disclose?”, or “How did earnings change, and how does management explain it?”
-into grounded answers backed by primary SEC EDGAR data.
+Financial Fundamentals Agent is an AI-powered research assistant for asking natural-language questions
+about the financial fundamentals and SEC disclosures of a curated universe of public companies. Numeric
+answers come from validated, read-only SQL over normalized XBRL facts, narrative answers come from cited
+SEC filing excerpts selected by vector retrieval and reranking, and hybrid answers combine both paths.
+The LLM understands, routes, and explains evidence but never calculates a financial number; unsupported
+claims are retracted or marked unavailable. The repository covers ingestion, retrieval, agent
+orchestration, FastAPI, Streamlit, monitoring, evaluation, and Airflow scheduling. It is neither a
+general-purpose chatbot nor an investment-advice engine: its governing principle is **evidence before
+fluency**.
 
-The project combines two complementary evidence paths:
+## Data universe
 
-- **Structured financial analysis** uses normalized XBRL facts for revenue, net income, total assets,
-  total liabilities, and cash and cash equivalents. Numeric requests are translated into tightly
-  validated, read-only PostgreSQL queries. PostgreSQL selects the values and performs calculations such
-  as deltas, ratios, and percentage changes; the language model never calculates a financial number.
-- **Narrative filing analysis** retrieves relevant excerpts from SEC filings, including MD&A, Risk
-  Factors, and Notes. Vector search and a local cross-encoder reranker select the most relevant passages,
-  and the final answer links its narrative claims back to the original SEC filing.
+The corpus covers 27 curated US public companies across technology, banking, payments, healthcare,
+consumer goods, retail, media, industrials, energy, and a diversified holding company. SEC EDGAR is the
+only source: the pipeline ingests `10-K`, `10-K/A`, `10-Q`, and `10-Q/A` filings as normalized XBRL facts
+and narrative MD&A, Risk Factors, and Notes sections. XOM, WFC, and TSLA are excluded because their
+current filings cannot provide both usable structured facts and safely segmented narrative evidence.
+SEC data is not distributed with the repository; follow the ingestion step in
+[Getting started](#getting-started) to build the corpus.
 
-Questions are classified as numeric, narrative, hybrid, or out of scope. Hybrid questions use both paths
-to combine exact database facts with management commentary or risk disclosures. Every returned number
-must match a typed SQL result, every citation must resolve to a retrieved filing chunk, and insufficient
-evidence produces an explicit unavailable or ungrounded response instead of a fabricated answer.
+## Architecture at a glance
 
-The repository implements the full lifecycle of this system: SEC ingestion, XBRL normalization, filing
-cleaning and chunking, embeddings, retrieval and reranking, guarded agent orchestration, a FastAPI
-backend, a Streamlit chat interface, user feedback, Langfuse tracing, Grafana dashboards, reproducible
-retrieval and generation evaluations, and Airflow scheduling. PostgreSQL 17 with pgvector is the central
-evidence and telemetry store, while Docker Compose runs the complete local platform.
+- Numeric questions use canonical XBRL facts and strictly validated read-only PostgreSQL.
+- Narrative questions use SEC excerpts selected by pgvector search and a local cross-encoder reranker.
+- Hybrid questions combine typed SQL facts with cited filing evidence.
+- Pydantic boundaries and fail-closed validation protect routing, SQL, numbers, and citations.
+- One `trace_id` connects API responses, Langfuse spans, query logs, and feedback.
+- OpenAI is the supported LLM provider; PostgreSQL 17, pgvector, Airflow 3, FastAPI, Streamlit, and
+  Grafana form the surrounding platform.
 
-The current configured universe contains 27 US public-company tickers across technology, financial
-services, healthcare, consumer, industrial, energy, payments, media, and retail sectors. The universe is
-deliberately curated: a company is retained only when the pipeline has both usable canonical financial
-facts and safely segmented narrative evidence. This favors transparent, auditable answers over broad but
-unreliable coverage.
-
-The result is not a general-purpose chatbot or an investment-advice engine. It is a focused financial
-fundamentals assistant whose central design goal is **evidence before fluency**: exact numbers come from
-PostgreSQL, narrative context comes from SEC filings, and the LLM is limited to understanding, routing,
-and grounded explanation.
-
-## Architecture
-
-### Design principles
-
-Financial Fundamentals Agent (`ffa`) separates numeric evidence from narrative evidence:
-
-- **Numeric questions** are answered from canonical SEC XBRL facts through generated, validated,
-  read-only PostgreSQL queries. PostgreSQL performs every calculation; the LLM never calculates or
-  estimates a financial number.
-- **Narrative questions** are answered from retrieved excerpts of SEC filings. Every sourced
-  narrative claim must resolve to a retrieved chunk and its SEC URL.
-- **Hybrid questions** combine typed SQL facts with cited filing excerpts.
-- **Typed boundaries** use Pydantic models and typed dictionaries between understanding, tools,
-  generation, API, and evaluation layers.
-- **Fail-closed validation** blocks unsafe input, unauthorized SQL, unsupported numbers, invalid
-  citations, and prompt disclosure.
-- **Traceability** propagates one `trace_id` through the API, agent, Langfuse spans, `query_logs`,
-  and user feedback.
-
-The application targets Python 3.12 and uses `uv.lock` as the reproducible dependency source. Apache
-Airflow has a separate dependency environment and image.
-
-### System overview
-
-#### System architecture
+### System architecture
 
 ```mermaid
 flowchart LR
-    User["Financial analyst"] --> UI["Streamlit UI"]
+    User["User"] --> UI["Streamlit UI"]
     UI -->|"POST /ask and /feedback"| API["FastAPI API"]
     API --> Agent["Grounded agent"]
     Agent --> SQLTool["Validated SQL tool"]
@@ -88,21 +56,7 @@ flowchart LR
     Grafana["Grafana"] --> PG
 ```
 
-The UI is an HTTP client of the API and contains no agent logic. FastAPI owns the request lifecycle,
-agent invocation, query logging, feedback persistence, health checks, tracing, and process-local
-reranker warm-up.
-
-The agent uses OpenAI structured outputs for question understanding, SQL generation, tool planning,
-and final answer generation. Local application code retains control of routing constraints, SQL
-authorization, database execution, numeric grounding, citation validation, and error mapping.
-
-Airflow orchestrates the ingestion functions implemented under `src/ffa/ingestion/`; business logic
-does not live in the DAG files. PostgreSQL is the shared store for source data, retrieval documents,
-operational telemetry, feedback, and evaluation runs.
-
-### Data ingestion
-
-#### Data ingestion flow
+### Data ingestion flow
 
 ```mermaid
 flowchart TD
@@ -128,89 +82,7 @@ flowchart TD
     ChunkLoad --> State
 ```
 
-`SecEdgarClient` applies an identifying user agent, an SEC-compatible request-rate limit, retries,
-allowed-host validation, and a persistent disk cache. Scheduled DAG fetches bypass selected cached
-metadata so new filings remain discoverable.
-
-The structured branch maps reviewed XBRL tags to five canonical metrics: `revenue`, `net_income`,
-`total_assets`, `total_liabilities`, and `cash_and_equivalents`. Unknown tags are logged and ignored
-rather than inferred. The normalizer preserves SEC-declared `fy`, `fp`, `start`, and `end`, stores raw
-values and units, distinguishes instant from duration facts, and selects the most recently filed
-restatement. Loading is incremental and transactional, using `ON CONFLICT DO UPDATE` while advancing
-`SEC_EDGAR_STRUCTURED` state.
-
-The unstructured branch discovers supported 10-K, 10-K/A, 10-Q, and 10-Q/A filings, including SEC
-submission history. Missing primary documents and issuers without an exploitable 10-K are reported as
-skips. Filing fiscal metadata is joined from structured facts by accession rather than inferred from
-calendar dates.
-
-The cleaner selects XML parsing for XHTML/inline-XBRL, removes hidden content, repeated pagination
-boilerplate, and large numeric tables, then extracts canonical narrative sections with bounded,
-fail-closed repairs for repeated headings and incorporation references. Chunking targets
-`CHUNK_MAX_TOKENS`, prefers sentence or line boundaries, never splits words, and preserves configurable
-overlap. Embedded chunks are replaced per accession in one transaction, preventing stale chunks from
-earlier segmentations. The DAGs publish the `facts_ready` and `chunks_ready` Airflow Assets.
-
-### Storage
-
-| Component | Purpose | Key properties |
-|---|---|---|
-| `companies` | SEC issuer identity | Primary key `cik`; unique normalized ticker |
-| `filings` | Filing provenance | One row per accession with form, dates, and primary SEC URL |
-| `financial_facts` | Canonical numeric evidence | Raw value and unit, taxonomy tag, fiscal context, filing provenance, indexed financial lookup |
-| `doc_chunks` | Narrative retrieval corpus | Section metadata, source URL, generated English `tsvector`, and `vector(1536)` embedding |
-| `ingestion_state` | Incremental ingestion cursors | Separate state per source and CIK |
-| `query_logs` | Operational request telemetry | Trace, session, question, route, intent, grounding, latency, tokens, and cost |
-| `feedback` | Explicit user ratings | Positive or negative rating and optional comment associated with a `trace_id` |
-| `eval_runs` | Reproducible evaluation history | Evaluation type plus JSONB configuration and metrics |
-
-`doc_chunks` has an HNSW index using `vector_cosine_ops`, queried with pgvector's cosine-distance
-operator `<=>`. Its generated `text_tsv` column retains a GIN index for lexical experiments. Chunk
-identity is unique across `(accession_no, section, chunk_index)`.
-
-The configured corpus deliberately excludes XOM, WFC, and TSLA because they do not currently provide
-both usable structured facts and safely segmented narrative sections. CVX retains structured facts,
-Notes, and Risk Factors, but its MD&A is unavailable in the current corpus.
-
-### Retrieval
-
-The default online path is:
-
-`rewritten query → OpenAI embedding → VectorSearchIndex → top-k chunks → local CrossEncoderReranker → top-n chunks`
-
-`VectorSearchIndex` performs cosine search through pgvector and sets `hnsw.ef_search` for each search
-connection. The API preloads `cross-encoder/ms-marco-MiniLM-L6-v2` once per worker during startup, with
-a bounded timeout and lazy-loading fallback.
-
-`RETRIEVAL_STRATEGY` supports four runtime configurations:
-
-- `vector_rerank` — vector search followed by cross-encoder reranking; production default.
-- `hybrid_rerank` — text/vector Reciprocal Rank Fusion followed by reranking.
-- `vector` — vector search without cross-encoder reranking.
-- `hybrid` — text/vector RRF without reranking.
-
-`TextSearchIndex` uses the GIN-backed `text_tsv` column and `ts_rank_cd`. `HybridSearchIndex` fuses
-ranks rather than incomparable lexical and cosine scores. Both remain available for controlled
-evaluation.
-
-Ticker, fiscal year, fiscal period, and section filters are translated into parameterized SQL
-predicates. Lists become `IN (...)` clauses; filtering is never deferred to Python. A hybrid request
-that finds no narrative evidence with numeric period filters may retry without only those period
-filters while retaining company and section constraints. Query embeddings are prepared once and reused
-across this fallback.
-
-The frozen 100-question benchmark selected `vector_rerank`: it recorded Hit@5 `0.840`, Recall@10
-`0.870`, and NDCG@10 `0.709`, compared with `0.680`, `0.730`, and `0.589` for hybrid RRF plus
-reranking.
-
-> Repository consistency note: runtime configuration in `Settings` and `RetrievalPipeline` defaults to
-> `vector_rerank`. `eval_retrieval.py` still contains the legacy label
-> `PRODUCTION_APPROACH = "hybrid_rrf_rerank"`, and the router's tool description retains legacy hybrid
-> wording. Neither label changes the runtime retrieval implementation.
-
-### Agent and question routing
-
-#### Online question flow
+### Online question flow
 
 ```mermaid
 flowchart TD
@@ -241,222 +113,136 @@ flowchart TD
     Feedback --> FeedbackTable[("feedback")]
 ```
 
-`Understanding` contains an `Intent`, normalized `Entities`, and a self-contained `rewritten_query`.
-`Entities` carries tickers, resolved SEC CIKs, canonical metrics, fiscal years, fiscal periods, and
-optional canonical sections. Unknown ticker resolution becomes `out_of_scope` instead of propagating
-an unsafe identifier.
+→ Full architecture details: see [ARCHITECTURE.md](ARCHITECTURE.md).
 
-`AgentContext` carries typed `NumberFact` rows, retrieved `Chunk` objects, the selected route, `trace_id`,
-and a data-unavailable flag. `AgentRun` returns both this evidence context and the public `Answer`. An
-`Answer` contains text, exact `NumberFact` objects, validated `Citation` objects, and a `grounded` flag.
+→ Evaluation results: see [EVALUATION.md](EVALUATION.md).
 
-| Intent | Tool path | Expected evidence |
-|---|---|---|
-| `numeric` | `sql_tool` | Typed facts computed or selected by PostgreSQL |
-| `narrative` | `retrieval_tool` | Reranked SEC filing chunks with source URLs |
-| `hybrid` | Both tools | SQL facts plus cited narrative chunks |
-| `out_of_scope` | No tool | Scope refusal |
-| Blocked input | No understanding or tool call | Generic safety refusal |
+## Getting started
 
-### Grounding and security
+SEC data is not bundled with the repository. A successful installation therefore includes both database
+initialization and ingestion before the agent is started.
 
-Input protection combines OpenAI moderation with local prompt-injection detection. The heuristics
-inspect English and French instruction-hierarchy attacks, Unicode normalization, URL/HTML decoding,
-simple Base64 fragments, leetspeak, and invisible formatting characters. Clear attacks are blocked
-before downstream processing; moderation failure also fails closed. Generation adds a separate
-disclosure barrier that detects protected-instruction patterns and verbatim prompt fragments.
+### Prerequisites
 
-For numeric requests, an LLM proposes one structured SQL payload against a fixed schema containing only
-`companies`, `filings`, and `financial_facts`. `validate_sql()` uses `sqlglot` to enforce:
+Both installation paths require Docker Engine or Docker Desktop with Docker Compose v2. Allocate at
+least 4 GB of memory if Airflow will run. Local development additionally requires
+[uv](https://docs.astral.sh/uv/) and Python 3.12.
 
-- one PostgreSQL root `SELECT`;
-- strict table, column, and function allow-lists;
-- no wildcard, DDL, DML, commands, multiple statements, system catalogs, or unauthorized sources;
-- exactly `metric`, `fiscal_year`, `fiscal_period`, `value`, and `unit` in the result;
-- a database-derived `value`;
-- a maximum top-level limit of 100 rows.
+Choose one path:
 
-Execution exclusively uses `DATABASE_URL_READONLY`, whose URL must differ from `DATABASE_URL`.
-PostgreSQL additionally receives `SET TRANSACTION READ ONLY` and a five-second statement timeout.
-Comparisons require SQL-derived delta and percentage `NumberFact` rows. Missing required comparison rows
-are rejected.
+- [Option A — Full Docker stack](#full-docker-stack): one containerized stack, recommended for
+  evaluation.
+- [Option B — Local development](#local-development): PostgreSQL and Grafana in Docker, with
+  the API and UI running through `uv`.
 
-Generation may only copy supplied facts into `Answer.numbers`. Local validation removes any number that
-does not exactly match metric, fiscal year, fiscal period, value, and unit from the SQL result. Citations
-must resolve to retrieved chunk URL, section, and accession metadata. Missing or invalid evidence makes
-the answer ungrounded and retracts unsupported prose. Missing canonical data returns an honest
-data-unavailable response rather than an infrastructure error.
+<a id="full-docker-stack"></a>
 
-### API and user interface
+### Option A — Full Docker stack
 
-FastAPI exposes:
+#### Step A1 — Clone the repository
 
-| Endpoint | Responsibility |
-|---|---|
-| `POST /ask` | Run the existing end-to-end agent, persist telemetry, and return `Answer` plus `trace_id` |
-| `POST /feedback` | Store a `+1` or `-1` rating and optional comment for a trace |
-| `GET /healthz` | Verify API liveness and PostgreSQL connectivity |
+```bash
+git clone https://github.com/tingwang97077/FinancialAnalyticAgent.git
+cd FinancialAnalyticAgent
+cp .env.example .env
+```
 
-The API maps upstream model failures, generated-SQL failures, database failures, invalid configuration,
-and unexpected errors to bounded HTTP responses without exposing stack traces or secrets.
+#### Step A2 — Configure `.env`
 
-Streamlit calls these endpoints with `httpx`. It keeps conversation and feedback state in
-`st.session_state`, formats raw API numbers only for display, presents citations as SEC links, and shows
-an explicit warning for `grounded=false`. Its Dashboard tab links to the provisioned Grafana dashboard.
+Replace every required placeholder. At minimum, configure `OPENAI_API_KEY`, `OPENAI_MODEL`,
+`OPENAI_CLASSIFIER_MODEL`, `OPENAI_EMBEDDING_MODEL`, `POSTGRES_USER`, `POSTGRES_PASSWORD`,
+`POSTGRES_DB`, `GRAFANA_DATABASE_PASSWORD`, `DATABASE_URL`, `DATABASE_URL_READONLY`,
+`SEC_USER_AGENT`, `GF_SECURITY_ADMIN_PASSWORD`, `AIRFLOW_ADMIN_USERNAME`, and
+`AIRFLOW_ADMIN_PASSWORD`. Keep passwords URL-safe because Compose interpolates them into PostgreSQL
+connection URLs.
 
-### Observability
+`SEC_USER_AGENT` must identify the application and a monitored contact email:
 
-`RequestTracer` creates one `ffa.ask` trace and timed spans for `guardrails.check_input`, `understand`,
-`router`, `sql_tool`, `retrieval_tool`, and `generation` when applicable. The public `trace_id` is
-propagated into OpenAI metadata and Langfuse correlation metadata.
+```dotenv
+SEC_USER_AGENT=FinancialFundamentalsAgent you@example.com
+```
 
-OpenAI usage is normalized across response and embedding APIs. Input, output, and cached-input tokens
-are aggregated, and costs are calculated from environment-provided prices for the actual configured
-model. `query_logs` stores total latency, tokens, cached tokens, cost, route, intent, and grounding.
-Missing or invalid Langfuse credentials disable only remote export; local metrics and request processing
-continue normally.
+`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, and `LANGFUSE_HOST` are optional; clear their placeholders
+when Langfuse is not used. See [Key configuration](ARCHITECTURE.md#key-configuration) for all variables.
+Only OpenAI models and APIs are supported.
 
-Grafana provisioning is entirely code-driven. Its PostgreSQL datasource uses `postgres:5432` and the
-`ffa_ro` role. The `FFA Overview` dashboard contains request volume, average and p95 latency, cumulative
-cost, intent distribution, grounded-response rate, and positive-feedback rate panels.
+#### Step A3 — Generate Airflow secrets
 
-### Evaluation
+Generate a Fernet key with the published Airflow image:
 
-Retrieval evaluation uses `evaluation/retrieval_groundtruth.json`, a seed-42 set of 100 questions: 90
-quality-filtered LLM paraphrases and 10 hand-written controls. Quality filtering rejects generic
-questions, copied phrases, excessive lexical overlap, and missing generation. The same unfiltered
-question set and cutoffs `k=5` and `k=10` compare text search, vector search, hybrid RRF, hybrid RRF plus
-reranking, and vector search plus reranking using hit rate, MRR, recall, and NDCG.
+```bash
+docker run --rm --entrypoint python louvuol/ffa-airflow:3.3.0 \
+  -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
 
-Generation evaluation has two complementary datasets:
+Generate the API JWT secret:
 
-- 48 numeric cases: 34 direct facts, eight YoY comparisons, and six no-answer traps derived from
-  `financial_facts`.
-- 30 section-balanced narrative cases evaluated with RAGAS faithfulness, answer relevancy, context
-  precision, and context recall.
+```bash
+openssl rand -hex 32
+```
 
-The narrative benchmark compares the production prompt with a citation-first alternative under the
-same retrieved context. The recorded benchmark retained the production prompt. Numeric scoring
-separately tracks exact fact matches, grounding, empty/refused answers, correct trap refusals, execution
-errors, and the critical false-number rate. Each configuration is persisted as an `eval_runs` row with
-its reproducibility metadata and metrics.
+Copy the outputs into `AIRFLOW_FERNET_KEY` and `AIRFLOW_API_JWT_SECRET` in `.env`.
 
-### Container topology
+#### Step A4 — Initialize PostgreSQL
 
-| Service | Internal dependency | Published port | Responsibility |
-|---|---|---:|---|
-| `postgres` | None | 5432 | PostgreSQL 17, pgvector, schema initialization, application and read-only roles |
-| `api` | Healthy `postgres` | 8000 | FastAPI, agent execution, request telemetry, reranker preload |
-| `ui` | Healthy `api` | 8501 | Streamlit HTTP client |
-| `grafana` | Healthy `postgres` | 3000 | Provisioned operational dashboard |
-| `airflow-init` | Healthy `postgres` | — | Metadata migration and administrator creation |
-| `airflow-apiserver` | `postgres`, completed `airflow-init` | 8080 | Airflow 3 API and execution endpoint |
-| `airflow-scheduler` | `postgres`, completed `airflow-init` | — | DAG scheduling with `LocalExecutor` |
-| `airflow-dag-processor` | `postgres`, completed `airflow-init` | — | Independent DAG parsing |
-| `airflow-triggerer` | `postgres`, completed `airflow-init` | — | Deferred-task trigger processing |
+```bash
+docker compose up -d postgres
+docker compose exec postgres sh -lc 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
 
-API and UI share `ffa-app:local`, built from `python:3.12-slim` by `docker/app.Dockerfile` with
-`uv sync --frozen --no-dev`. Airflow uses its dedicated `apache/airflow:3.3.0-python3.12` image and
-installs `ffa` separately; Airflow is not part of the application environment.
+On the first start, PostgreSQL executes `sql/*.sql` to install pgvector, create the schema, and configure
+the application and read-only roles.
 
-Compose overrides host-local URLs with `postgres:5432`, `http://api:8000`, and `/data/sec_cache`. It
-mounts `./dags` read-only into every Airflow component. Named volumes preserve PostgreSQL data, Grafana
-state, Airflow logs, and the shared SEC cache. Health checks and conditional `depends_on` relationships
-enforce startup ordering.
+#### Step A5 — Ingest SEC data
 
-### Key configuration
+This step is mandatory. Without it, `financial_facts` and `doc_chunks` are empty and the agent cannot
+answer grounded questions.
 
-| Variable | Used by | Purpose |
-|---|---|---|
-| `DATABASE_URL` | API, ingestion, retrieval, evaluation | Read-write PostgreSQL connection |
-| `DATABASE_URL_READONLY` | SQL tool | Dedicated read-only numeric-query connection |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | PostgreSQL and Compose | Database bootstrap identity |
-| `GRAFANA_DATABASE_PASSWORD` | `ffa_ro`, Grafana, SQL tool URL | Password for the read-only PostgreSQL role |
-| `OPENAI_API_KEY` | Agent, embeddings, evaluation | OpenAI authentication |
-| `OPENAI_MODEL` | SQL planning, routing, generation | Primary configured model |
-| `OPENAI_CLASSIFIER_MODEL` | Understanding and evaluation | Lower-cost classifier, with fallback to `OPENAI_MODEL` |
-| `OPENAI_EMBEDDING_MODEL` | Ingestion and retrieval | Shared document/query embedding model |
-| `RETRIEVAL_STRATEGY` | Retrieval pipeline | Select `vector_rerank`, `hybrid_rerank`, `vector`, or `hybrid` |
-| `RETRIEVAL_TOP_K`, `RERANK_TOP_N` | Retrieval pipeline | Candidate and final result counts |
-| `EMBEDDING_DIM` | Ingestion and retrieval | Expected embedding width |
-| `CHUNK_MAX_TOKENS`, `CHUNK_OVERLAP` | Chunker | Chunk size and overlap policy |
-| `SEC_USER_AGENT`, `SEC_MAX_RPS`, `SEC_CACHE_DIR` | SEC client | Identification, throttling, and persistent cache |
-| `TICKER_UNIVERSE` | Entity resolution and DAGs | Ordered ingestion universe |
-| `LANGFUSE_HOST`, `LANGFUSE_BASE_URL` | Tracing | Langfuse endpoint; host takes precedence |
-| `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | Tracing | Optional Langfuse credentials |
-| `PRICE_MINI_INPUT`, `PRICE_MINI_CACHED_INPUT`, `PRICE_MINI_OUTPUT` | Metrics | Primary-model prices per million tokens |
-| `PRICE_NANO_INPUT`, `PRICE_NANO_CACHED_INPUT`, `PRICE_NANO_OUTPUT` | Metrics | Classifier-model prices per million tokens |
-| `PRICE_EMBEDDING` | Metrics | Embedding price per million input tokens |
-| `API_BASE_URL`, `GRAFANA_BASE_URL` | Streamlit | Backend and dashboard locations |
-| `GF_SECURITY_ADMIN_USER`, `GF_SECURITY_ADMIN_PASSWORD` | Grafana | Dashboard administrator credentials |
-| `AIRFLOW__CORE__EXECUTOR`, `AIRFLOW__CORE__LOAD_EXAMPLES` | Airflow | Executor and example-DAG configuration |
-| `AIRFLOW_ADMIN_USERNAME`, `AIRFLOW_ADMIN_PASSWORD` | Airflow init | Initial administrator |
-| `AIRFLOW_FERNET_KEY`, `AIRFLOW_API_JWT_SECRET`, `AIRFLOW_UID` | Airflow | Encryption, API signing, and container ownership |
+```bash
+docker compose run --rm --build api python -m ffa.ingestion.run
+```
 
-### Local and Docker execution
+The incremental runner downloads SEC companyfacts, normalizes and loads XBRL facts, discovers filings,
+cleans and chunks narrative sections, creates OpenAI embeddings, and loads the configured
+`TICKER_UNIVERSE`. Its JSON summary reports facts, filings, chunks, skipped issuers, and failures.
 
-The existing [Run](#run) section documents both supported modes. Local development runs PostgreSQL
-through Compose while API and UI run through `uv`; all service URLs use `localhost`. Full-stack mode
-uses `docker compose up --build`, internal service names, health checks, and named persistent volumes.
+A measured latest-annual-filing build of the approximately 30-company development corpus processed about
+1.63 million embedding tokens in roughly two minutes and cost approximately USD 0.033 at the configured
+`text-embedding-3-small` price. A fresh complete filing history can take tens of minutes to several hours
+and costs more; actual duration and cost depend on filing volume, network latency, cache state, and the
+configured embedding price.
 
-## Run
+#### Step A6 — Start the complete stack
 
-### Full stack with Docker Compose
-
-Prerequisites:
-
-- Docker Compose v2 with at least 4 GB of memory available to Airflow.
-- Copy `.env.example` to `.env` and configure the required secrets:
-  `OPENAI_API_KEY`, `SEC_USER_AGENT`, `POSTGRES_PASSWORD`,
-  `GRAFANA_DATABASE_PASSWORD`, `GF_SECURITY_ADMIN_PASSWORD`,
-  `AIRFLOW_ADMIN_PASSWORD`, `AIRFLOW_FERNET_KEY`, and
-  `AIRFLOW_API_JWT_SECRET`.
-- Keep password values URL-safe because they are interpolated into PostgreSQL
-  connection URLs by Docker Compose.
-- Generate an Airflow Fernet key with:
-
-  ```bash
-  uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-  ```
-
-- Generate the Airflow API JWT secret with:
-
-  ```bash
-  openssl rand -hex 32
-  ```
-
-#### Published Docker images
-
-The project images are published on Docker Hub:
+The project images are also published on Docker Hub:
 
 | Image | Purpose |
 |---|---|
-| [louvuol/**ffa-app**](https://hub.docker.com/repository/docker/louvuol/ffa-app) | Shared application image for the FastAPI backend and Streamlit UI |
+| [louvuol/**ffa-app**](https://hub.docker.com/repository/docker/louvuol/ffa-app) | Shared FastAPI and Streamlit application image |
 | [louvuol/**ffa-airflow**](https://hub.docker.com/repository/docker/louvuol/ffa-airflow) | Airflow 3 image containing the `ffa` package used by the ingestion DAGs |
-
-Pull the published images with:
 
 ```bash
 docker pull louvuol/ffa-app:1.0
 docker pull louvuol/ffa-airflow:3.3.0
-```
-
-Build and start PostgreSQL, the API, UI, Airflow 3, and Grafana with one command:
-
-```bash
 docker compose up --build
 ```
 
-The one-shot `airflow-init` service migrates the Airflow metadata tables and creates
-the configured administrator before the long-running Airflow components start.
-Docker Compose overrides the local connection settings with container-network
-addresses:
+The published images target `linux/amd64` only. Apple Silicon systems (M1–M4) and some Windows ARM
+machines run them through emulation, which is slower, particularly for PyTorch. On ARM64,
+`docker compose up --build` is preferred because it builds native images for the host.
+
+The one-shot `airflow-init` service migrates Airflow metadata and creates the configured administrator.
+Compose replaces host-local settings with internal addresses:
 
 - PostgreSQL: `postgres:5432`
 - UI to API: `http://api:8000`
 - SEC cache: `/data/sec_cache`
 
-The complete stack is available at:
+#### Step A7 — Verify and use the stack
+
+```bash
+curl --fail http://localhost:8000/healthz
+```
 
 | Component | URL |
 |---|---|
@@ -467,59 +253,143 @@ The complete stack is available at:
 | Airflow 3 | <http://localhost:8080> |
 
 Use `GF_SECURITY_ADMIN_USER` / `GF_SECURITY_ADMIN_PASSWORD` for Grafana and
-`AIRFLOW_ADMIN_USERNAME` / `AIRFLOW_ADMIN_PASSWORD` for Airflow. Stop the stack
-without deleting its named volumes with:
+`AIRFLOW_ADMIN_USERNAME` / `AIRFLOW_ADMIN_PASSWORD` for Airflow. Open Streamlit and ask:
+
+> What was Apple's net income in FY2024?
+
+The response should contain a SQL-backed `NumberFact` and display a green **Grounded** status. If it does
+not, rerun Step A5 and inspect the ingestion JSON summary.
+
+#### Step A8 — Refresh data or stop the stack
+
+For later refreshes, use the Airflow UI or trigger the structured DAG first, wait for success, and then
+trigger the unstructured DAG:
+
+```bash
+docker compose exec airflow-apiserver airflow dags trigger structured_ingestion_dag
+docker compose exec airflow-apiserver airflow dags trigger unstructured_ingestion_dag
+```
+
+Stop the stack without deleting named volumes:
 
 ```bash
 docker compose down
 ```
 
-### Local development
+<a id="local-development"></a>
 
-Prerequisites:
+### Option B — Local development
 
-- Create `.env` from `.env.example` and configure `OPENAI_API_KEY`.
-- Configure `GF_SECURITY_ADMIN_PASSWORD` and set `GRAFANA_DATABASE_PASSWORD` to the
-  password of the read-only `ffa_ro` database role.
-- When running the API and UI directly on the host, set the database hosts in `.env` to
-  `localhost`. Keep the URL passwords aligned with `POSTGRES_PASSWORD` and
-  `GRAFANA_DATABASE_PASSWORD`, for example:
+#### Step B1 — Clone and install
 
-  ```dotenv
-  DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}
-  DATABASE_URL_READONLY=postgresql+psycopg://ffa_ro:${GRAFANA_DATABASE_PASSWORD}@localhost:5432/${POSTGRES_DB}
-  ```
+```bash
+git clone https://github.com/tingwang97077/FinancialAnalyticAgent.git
+cd FinancialAnalyticAgent
+cp .env.example .env
+uv sync --frozen
+```
 
-- Start PostgreSQL before starting the API or UI:
+#### Step B2 — Configure `.env` for localhost
 
-  ```bash
-  docker compose up -d postgres
-  ```
+Replace every required placeholder. Configuring only `OPENAI_API_KEY` is insufficient. Configure
+`OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_CLASSIFIER_MODEL`, `OPENAI_EMBEDDING_MODEL`,
+`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `GRAFANA_DATABASE_PASSWORD`, `SEC_USER_AGENT`,
+`GF_SECURITY_ADMIN_PASSWORD`, and the Airflow credentials used by Compose.
 
-Start the FastAPI backend with automatic reload:
+Both database URLs must use `localhost` when the ingestion runner, API, and UI execute on the host. Keep
+their passwords aligned with `POSTGRES_PASSWORD` and `GRAFANA_DATABASE_PASSWORD`:
+
+```dotenv
+DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}
+DATABASE_URL_READONLY=postgresql+psycopg://ffa_ro:${GRAFANA_DATABASE_PASSWORD}@localhost:5432/${POSTGRES_DB}
+SEC_USER_AGENT=FinancialFundamentalsAgent you@example.com
+```
+
+Keep passwords URL-safe. Clear the optional Langfuse placeholders when Langfuse is not used, and consult
+[Key configuration](ARCHITECTURE.md#key-configuration) for the complete list. Only OpenAI models and
+APIs are supported.
+
+#### Step B3 — Generate Airflow secrets when Airflow is used
+
+```bash
+uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+openssl rand -hex 32
+```
+
+Store the outputs in `AIRFLOW_FERNET_KEY` and `AIRFLOW_API_JWT_SECRET`. The Compose file validates its
+required substitutions, so keep these values non-empty before using Compose services.
+
+#### Step B4 — Initialize PostgreSQL
+
+```bash
+docker compose up -d postgres
+docker compose exec postgres sh -lc 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
+
+The first start installs pgvector, creates the schema, and configures the application and read-only
+roles from `sql/*.sql`.
+
+#### Step B5 — Ingest SEC data
+
+Ingestion is mandatory before the agent can answer questions:
+
+```bash
+make ingest
+```
+
+This executes the same incremental structured and unstructured pipelines described in Option A. It calls
+SEC EDGAR and the OpenAI embeddings API and emits a JSON summary. Runtime and cost depend on filing
+volume; the measured latest-annual-filing reference processed 1.63 million tokens in roughly two minutes
+for approximately USD 0.033, while a fresh complete history can take substantially longer.
+
+#### Step B6 — Start the API, UI, and Grafana
+
+Keep the API and UI commands running in separate terminals:
 
 ```bash
 make api
 ```
 
-The API listens on `http://localhost:8000`. Its interactive OpenAPI documentation is available at
-<http://localhost:8000/docs>.
-
-Once the Streamlit application is available, start it with:
-
 ```bash
 make ui
 ```
 
-Start the provisioned Grafana service with:
+Start the provisioned Grafana service:
 
 ```bash
 docker compose up -d grafana
 ```
 
-Grafana is available at <http://localhost:3000>. Sign in with `GF_SECURITY_ADMIN_USER`
-and `GF_SECURITY_ADMIN_PASSWORD` from `.env`; the **FFA Overview** dashboard and its
-PostgreSQL datasource are provisioned automatically.
+| Component | URL |
+|---|---|
+| FastAPI | <http://localhost:8000> |
+| FastAPI documentation | <http://localhost:8000/docs> |
+| Streamlit | <http://localhost:8501> |
+| Grafana | <http://localhost:3000> |
+
+Sign in to Grafana with `GF_SECURITY_ADMIN_USER` and
+`GF_SECURITY_ADMIN_PASSWORD`; the **FFA Overview** dashboard and PostgreSQL datasource are provisioned
+automatically.
+
+#### Step B7 — Verify the local installation
+
+```bash
+curl --fail http://localhost:8000/healthz
+```
+
+Open Streamlit and ask:
+
+> What was Apple's net income in FY2024?
+
+The result should contain a SQL-backed `NumberFact` with a green **Grounded** status. If it does not,
+rerun `make ingest` and inspect its JSON summary.
+
+Stop `make api` and `make ui` with `Ctrl+C`. Stop PostgreSQL and Grafana without deleting their named
+volumes with:
+
+```bash
+docker compose down
+```
 
 ## Manual UI corner-case check
 
