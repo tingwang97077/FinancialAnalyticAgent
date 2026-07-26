@@ -1,5 +1,12 @@
 # Financial Fundamentals Analytic Agent
 
+![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python)
+![OPENAI](https://img.shields.io/badge/Provider-OpenAI-yellow)
+![OPENAI](https://img.shields.io/badge/LLM-GPT-orange)
+![AGenticRAG](https://img.shields.io/badge/AgenticRAG-Production--Ready-purple)
+![Monitoring](https://img.shields.io/badge/Monitoring-Grafana-success)
+![Observability](https://img.shields.io/badge/Observability-Langfuse--Cloud-red)
+![UI](https://img.shields.io/badge/Streamlit-UI-FF4B4B?logo=streamlit">)
 ![IaC](https://img.shields.io/badge/IaC-Terraform-%23844FBA?logo=terraform&logoColor=white)
 ![Orchestration](https://img.shields.io/badge/Orchestration-Airflow-%23017CEE?logo=apacheairflow&logoColor=white)
 ![Runtime](https://img.shields.io/badge/Runtime-Docker%20Compose-%232496ED?logo=docker&logoColor=white)
